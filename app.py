@@ -1,7 +1,7 @@
 import streamlit as st
 import engine
 import amenities
-import share
+import share  # Importando o novo módulo
 from datetime import date
 
 # --- Configuração da Página ---
@@ -12,12 +12,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- SOCIAL META TAGS ---
+# --- CAPA SOCIAL (META TAGS) ---
 def set_social_headers():
+    """Tenta melhorar a aparência do link no WhatsApp/LinkedIn"""
     meta_tags = """
     <head>
         <meta property="og:title" content="TakeItIz 🧳 - Quanto custa sua viagem?" />
-        <meta property="og:description" content="Descubra o orçamento real da sua próxima viagem com inteligência de dados." />
+        <meta property="og:description" content="Descubra o orçamento real com inteligência de dados." />
         <meta property="og:image" content="https://cdn-icons-png.flaticon.com/512/201/201623.png" />
     </head>
     """
@@ -25,7 +26,7 @@ def set_social_headers():
 
 set_social_headers()
 
-# --- CSS ELEGANCE (Visual Clean) ---
+# --- CSS ELEGANCE (Visual Clean & Cards) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -67,17 +68,8 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     
-    /* Ícone dentro do botão */
-    .amenity-icon {
-        font-size: 24px;
-        margin-bottom: 5px;
-    }
-    
-    /* Texto do botão */
-    .amenity-text {
-        font-size: 14px;
-        line-height: 1.2;
-    }
+    .amenity-icon { font-size: 24px; margin-bottom: 5px; }
+    .amenity-text { font-size: 14px; line-height: 1.2; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -89,7 +81,6 @@ with st.container():
 
 # --- Inputs ---
 dest = st.text_input("Para onde vamos?", placeholder="Ex: Nova York, Paris, Londres...")
-
 travel_dates = st.date_input("Qual o período?", value=(), min_value=date.today(), format="DD/MM/YYYY")
 
 days_calc = 0
@@ -106,10 +97,7 @@ with col_moeda:
     currency = st.selectbox("Moeda", ["BRL", "USD", "EUR"])
 
 st.write("**Estilo da Viagem**")
-style = st.select_slider(
-    label="Estilo", options=["Econômico", "Moderado", "Conforto", "Luxo"],
-    value="Moderado", label_visibility="collapsed"
-)
+style = st.select_slider("Estilo", options=["Econômico", "Moderado", "Conforto", "Luxo"], value="Moderado", label_visibility="collapsed")
 
 st.write("**Qual a Vibe principal?**")
 vibe_options = ["Tourist Mix (Padrão)", "Cultura (Museus)", "Gastro (Comer bem)", "Natureza (Ar livre)", "Festa (Nightlife)", "Familiar (Relax)"]
@@ -144,6 +132,7 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             st.markdown(f"### 🎫 Orçamento: {dest}")
             st.caption(f"{days_calc} dias • {travelers} pessoas • {style}")
             
+            # Valores Principais
             total_fmt = f"{currency} {costs['total']:,.2f}"
             st.metric(label="Investimento Total Estimado", value=total_fmt)
             
@@ -153,7 +142,7 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             daily_fmt = f"{currency} {costs['daily_avg']:,.2f}"
             st.info(f"💡 Custo médio por pessoa/dia: **{daily_fmt}**")
             
-            # --- SHARE TICKET ---
+            # --- SHARE TICKET (AQUI ESTÁ A NOVIDADE) ---
             ticket_gen = share.TicketGenerator()
             ticket_img = ticket_gen.create_ticket(
                 destination=dest, total_value=costs['total'], 
@@ -168,21 +157,24 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 mime="image/png",
                 use_container_width=True
             )
+            # -------------------------------------------
 
             st.markdown("---")
             
+            # Breakdown
             bk = costs['breakdown']
             c1, c2, c3 = st.columns(3)
             c1.metric("🏨 Hotel", f"{int(bk['lodging']):,}")
             c2.metric("🍽️ Comida", f"{int(bk['food']):,}")
             c3.metric("🚌 Lazer", f"{int(bk['transport'] + bk['activities'] + bk['misc']):,}")
             
+            # Auditoria
             with st.expander("🔍 Auditoria do Cálculo"):
                 for log in result['audit']:
                     icon = "✅" if log['status'] == "OK" else "⚠️"
                     st.text(f"{icon} [{log['src']}] {log['msg']}")
 
-            # --- AMENITIES (VISUAL ELEGANTE) ---
+            # --- AMENITIES (ELEGANTES) ---
             st.write("---")
             st.subheader(f"✨ Curadoria: {dest}")
             
@@ -194,48 +186,30 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             
             col_a, col_b, col_c = st.columns(3)
             
-            # Botão 1: Food
             with col_a:
                 st.markdown(f"""
                 <a href="{links['food']}" target="_blank" class="amenity-btn">
                     <span class="amenity-icon">🍽️</span>
                     <span class="amenity-text">{links['labels']['food_label']}</span>
-                </a>
-                """, unsafe_allow_html=True)
+                </a>""", unsafe_allow_html=True)
                 
-            # Botão 2: Agenda
             with col_b:
                 st.markdown(f"""
                 <a href="{links['event']}" target="_blank" class="amenity-btn">
                     <span class="amenity-icon">📅</span>
                     <span class="amenity-text">{links['labels']['event_label']}</span>
-                </a>
-                """, unsafe_allow_html=True)
+                </a>""", unsafe_allow_html=True)
                 
-            # Botão 3: Surpreenda-se
             with col_c:
                 st.markdown(f"""
                 <a href="{links['surprise']}" target="_blank" class="amenity-btn">
                     <span class="amenity-icon">🎲</span>
                     <span class="amenity-text">{links['labels']['surprise_label']}</span>
-                </a>
-                """, unsafe_allow_html=True)
+                </a>""", unsafe_allow_html=True)
             
-            # Botão Mapa (Full width, sem mencionar o estilo explicitamente no rótulo)
             st.markdown(f"""
             <a href="{links['attr']}" target="_blank">
-                <button style="
-                    width: 100%;
-                    background-color: white;
-                    color: #1E88E5;
-                    border: 2px solid #1E88E5;
-                    padding: 12px;
-                    border-radius: 12px;
-                    cursor: pointer;
-                    font-weight: bold;
-                    margin-top: 10px;
-                    transition: 0.3s;">
+                <button style="width: 100%; background-color: white; color: #1E88E5; border: 2px solid #1E88E5; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold; margin-top: 10px;">
                     📍 Ver Mapa de Atrações Imperdíveis
                 </button>
-            </a>
-            """, unsafe_allow_html=True)
+            </a>""", unsafe_allow_html=True)
