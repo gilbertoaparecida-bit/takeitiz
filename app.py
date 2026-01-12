@@ -37,11 +37,13 @@ st.markdown("""
     
     div.css-1r6slb0 {background-color: #FFFFFF; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
     
+    /* BOTÕES GRID */
     .amenity-btn {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        width: 100%; padding: 15px; background-color: #FFFFFF; color: #31333F !important;
+        width: 100%; height: 100px; /* Altura fixa para alinhar */
+        padding: 10px; background-color: #FFFFFF; color: #31333F !important;
         text-align: center; border-radius: 12px; text-decoration: none !important;
-        font-weight: 600; border: 1px solid #E0E0E0; margin-bottom: 10px;
+        font-weight: 600; border: 1px solid #E0E0E0; margin-bottom: 0px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s ease-in-out;
     }
     .amenity-btn:hover, .amenity-btn:active {
@@ -49,7 +51,7 @@ st.markdown("""
         transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     .amenity-icon { font-size: 24px; margin-bottom: 5px; }
-    .amenity-text { font-size: 14px; line-height: 1.2; }
+    .amenity-text { font-size: 13px; line-height: 1.2; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -95,15 +97,12 @@ vibe_key_map = {
 
 st.write("") 
 
-# --- ÁREA DE NOTIFICAÇÃO (Acima do botão) ---
-# Criamos um container vazio aqui para injetar mensagens depois
+# --- ÁREA DE NOTIFICAÇÃO ---
 msg_placeholder = st.empty() 
-# --------------------------------------------
 
 # --- Botão Calcular ---
 if st.button("💰 Calcular Orçamento", type="primary"):
     
-    # Validação: Feedback aparece ACIMA do botão
     if not dest:
         msg_placeholder.error("⚠️ Ei, faltou dizer o destino acima!")
         
@@ -116,10 +115,9 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             )
             costs = result
             
-            # Sucesso: Feedback aparece ACIMA do botão
             msg_placeholder.success("✅ Orçamento pronto! Role para baixo 👇")
             
-        # --- Resultado (Aparece abaixo) ---
+        # --- Resultado ---
         st.write("")
         with st.container():
             st.markdown(f"### 🎫 Orçamento: {dest}")
@@ -163,7 +161,7 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                     icon = "✅" if log['status'] == "OK" else "⚠️"
                     st.text(f"{icon} [{log['src']}] {log['msg']}")
 
-            # --- AMENITIES ---
+            # --- AMENITIES (NOVO GRID 2x2) ---
             st.write("---")
             st.subheader(f"✨ Curadoria: {dest}")
             
@@ -173,12 +171,38 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 style=style.lower(), start_date=start_date
             )
             
-            col_a, col_b, col_c = st.columns(3)
-            with col_a:
-                st.markdown(f'<a href="{links["food"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">🍽️</span><span class="amenity-text">{links["labels"]["food_label"]}</span></a>', unsafe_allow_html=True)
-            with col_b:
-                st.markdown(f'<a href="{links["event"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">📅</span><span class="amenity-text">{links["labels"]["event_label"]}</span></a>', unsafe_allow_html=True)
-            with col_c:
-                st.markdown(f'<a href="{links["surprise"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">🎲</span><span class="amenity-text">{links["labels"]["surprise_label"]}</span></a>', unsafe_allow_html=True)
+            # Linha 1: Hotel e Comida
+            row1_col1, row1_col2 = st.columns(2)
+            with row1_col1:
+                st.markdown(f"""
+                <a href="{links['hotel']}" target="_blank" class="amenity-btn">
+                    <span class="amenity-icon">🛏️</span>
+                    <span class="amenity-text">{links['labels']['hotel_label']}</span>
+                </a>""", unsafe_allow_html=True)
+            with row1_col2:
+                st.markdown(f"""
+                <a href="{links['food']}" target="_blank" class="amenity-btn">
+                    <span class="amenity-icon">🍽️</span>
+                    <span class="amenity-text">{links['labels']['food_label']}</span>
+                </a>""", unsafe_allow_html=True)
             
-            st.markdown(f'<a href="{links["attr"]}" target="_blank"><button style="width: 100%; background-color: white; color: #1E88E5; border: 2px solid #1E88E5; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold; margin-top: 10px;">📍 Ver Mapa de Atrações Imperdíveis</button></a>', unsafe_allow_html=True)
+            # Linha 2: Agenda e Surpresa
+            row2_col1, row2_col2 = st.columns(2)
+            with row2_col1:
+                st.markdown(f"""
+                <a href="{links['event']}" target="_blank" class="amenity-btn">
+                    <span class="amenity-icon">📅</span>
+                    <span class="amenity-text">{links['labels']['event_label']}</span>
+                </a>""", unsafe_allow_html=True)
+            with row2_col2:
+                st.markdown(f"""
+                <a href="{links['surprise']}" target="_blank" class="amenity-btn">
+                    <span class="amenity-icon">🎲</span>
+                    <span class="amenity-text">{links['labels']['surprise_label']}</span>
+                </a>""", unsafe_allow_html=True)
+            
+            # Linha 3: Mapa Full Width
+            st.markdown(f"""
+            <a href="{links['attr']}" target="_blank">
+                <button style="width: 100%; background-color: white; color: #1E88E5; border: 2px solid #1E88E5; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold; margin-top: 10px;">📍 Ver Mapa de Atrações</button>
+            </a>""", unsafe_allow_html=True)
