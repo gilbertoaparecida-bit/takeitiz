@@ -1,0 +1,21 @@
+[theme]
+# A base "light" impede que o app mude para preto à noite
+base="light"
+
+# Cor Primária (Botões, Sliders, Foco)
+# Azul Tech: Transmite segurança e clareza
+primaryColor="#1E88E5"
+
+# Cor de Fundo (Off-White)
+# Não é branco puro (#FFF) para não cansar a vista
+backgroundColor="#F8F9FA"
+
+# Cor de Fundo Secundária (Sidebar e Cards de destaque)
+secondaryBackgroundColor="#E3F2FD"
+
+# Cor do Texto
+# Cinzento escuro, melhor leitura que preto puro
+textColor="#31333F"
+
+# Fonte
+font="sans serif"
