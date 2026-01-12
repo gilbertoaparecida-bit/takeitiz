@@ -4,7 +4,7 @@ class AmenitiesGenerator:
     """
     Gera links profundos (Deep Links) para Google Maps e Search.
     Sintaxe de busca: Otimizada pelo Perfil.
-    Labels visuais: Elegantes e Neutros (Sem expor o perfil de gasto).
+    Labels visuais: Elegantes e Neutros.
     """
     
     def __init__(self):
@@ -48,37 +48,45 @@ class AmenitiesGenerator:
             }
         }
         
-        # Refinamento por Estilo (Usado APENAS na busca, não no texto)
+        # Refinamento por Estilo (Geral)
         self.STYLE_MODIFIERS = {
             'econômico': "cheap eats budget friendly free entry",
             'moderado': "best value rated",
             'conforto': "high end comfortable",
             'luxo': "luxury fine dining exclusive vip"
         }
+        
+        # Refinamento ESPECÍFICO para Hotéis (Novo feedback)
+        self.HOTEL_MODIFIERS = {
+            'econômico': "best budget hostels and cheap hotels",
+            'moderado': "best rated 3 star hotels central",
+            'conforto': "boutique hotels 4 star with breakfast",
+            'luxo': "luxury 5 star hotels and resorts with spa"
+        }
 
     def _clean_url(self, query):
         return urllib.parse.quote_plus(query)
 
     def generate_links(self, destination, vibe, style, start_date=None):
-        """Retorna links com Labels Higienizados (Sem 'Econômico' no texto)"""
+        """Retorna links incluindo sugestão de Hotéis"""
         
         vibe_key = vibe if vibe in self.VIBE_MAP else 'tourist_mix'
         style_key = style if style in self.STYLE_MODIFIERS else 'moderado'
         
         keywords = self.VIBE_MAP[vibe_key]
         style_mod = self.STYLE_MODIFIERS[style_key]
+        hotel_mod = self.HOTEL_MODIFIERS.get(style_key, "best hotels")
+        
+        # 0. PREPARAÇÃO DE DATA
+        date_str = ""
+        if start_date:
+            date_str = start_date.strftime("%B %Y")
         
         # 1. FOOD
         q_food = f"{style_mod} {destination} {keywords['food']}"
         url_food = f"https://www.google.com/maps/search/{self._clean_url(q_food)}"
         
         # 2. EVENTS
-        date_str = ""
-        display_date = "Agenda Local"
-        if start_date:
-            date_str = start_date.strftime("%B %Y")
-            display_date = f"Agenda {start_date.strftime('%b/%Y')}" # Ex: Jun/2026
-            
         q_event = f"{keywords['event']} in {destination} {date_str}"
         url_event = f"https://www.google.com/search?q={self._clean_url(q_event)}"
         
@@ -90,15 +98,21 @@ class AmenitiesGenerator:
         q_surprise = f"best {keywords['hidden']} in {destination} blog review"
         url_surprise = f"https://www.google.com/search?q={self._clean_url(q_surprise)}"
         
+        # 5. HOTELS (NOVO) - Busca no Google Travel/Search
+        # Ex: "luxury 5 star hotels... in Paris June 2026"
+        q_hotel = f"{hotel_mod} in {destination} {date_str}"
+        url_hotel = f"https://www.google.com/search?q={self._clean_url(q_hotel)}"
+        
         return {
             "food": url_food,
             "event": url_event,
             "attr": url_attr,
             "surprise": url_surprise,
+            "hotel": url_hotel, # Novo Link
             "labels": {
-                # TEXTOS NEUTROS E ELEGANTES
-                "food_label": "Gastronomia Local", 
+                "food_label": "Gastronomia", 
                 "event_label": "Agenda Cultural",
-                "surprise_label": "Surpreenda-se"
+                "surprise_label": "Surpreenda-se",
+                "hotel_label": "Onde Ficar" # Novo Label
             }
         }
