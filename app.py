@@ -62,7 +62,7 @@ with st.container():
 # --- Inputs ---
 dest = st.text_input("Para onde vamos?", placeholder="Ex: Nova York, Paris, Londres...")
 
-# Datas pré-selecionadas (UX melhorada)
+# Datas
 today = date.today()
 tomorrow = today + timedelta(days=1)
 travel_dates = st.date_input("Qual o período?", value=(today, tomorrow), min_value=today, format="DD/MM/YYYY")
@@ -95,10 +95,18 @@ vibe_key_map = {
 
 st.write("") 
 
+# --- ÁREA DE NOTIFICAÇÃO (Acima do botão) ---
+# Criamos um container vazio aqui para injetar mensagens depois
+msg_placeholder = st.empty() 
+# --------------------------------------------
+
 # --- Botão Calcular ---
 if st.button("💰 Calcular Orçamento", type="primary"):
+    
+    # Validação: Feedback aparece ACIMA do botão
     if not dest:
-        st.warning("Informe o destino!")
+        msg_placeholder.error("⚠️ Ei, faltou dizer o destino acima!")
+        
     else:
         with st.spinner('Consultando índices e câmbio atualizados...'):
             result = engine.engine.calculate_cost(
@@ -108,12 +116,10 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             )
             costs = result
             
-            # --- CORREÇÃO DO FEEDBACK (TOAST) ---
-            # Avisa o usuário que acabou e chama a atenção para rolar
-            st.toast("✅ Orçamento pronto! Role para baixo para ver.", icon="👇")
-            # ------------------------------------
+            # Sucesso: Feedback aparece ACIMA do botão
+            msg_placeholder.success("✅ Orçamento pronto! Role para baixo 👇")
             
-        # --- Resultado ---
+        # --- Resultado (Aparece abaixo) ---
         st.write("")
         with st.container():
             st.markdown(f"### 🎫 Orçamento: {dest}")
