@@ -35,10 +35,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Cabeçalho ---
-# Usando Markdown para forçar a cor azul na Mala, se desejar, ou apenas o título limpo
+col_logo, col_text = st.columns([1, 5])
+
+# Título e Manchete
 st.markdown("## TakeItIz 🧳") 
-st.caption("Planejamento financeiro de viagens (Sem aéreo)")
+st.markdown("**Saiba quanto você vai gastar no destino escolhido.**")
+st.caption("*(Estimativa de custos locais: Hospedagem, Alimentação e Transporte)*")
 st.write("---")
+
 
 # --- Inputs Mobile ---
 
