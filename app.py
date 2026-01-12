@@ -102,8 +102,8 @@ if st.button("💰 Calcular Orçamento", type="primary"):
     else:
         # --- O Motor Trabalhando ---
         with st.spinner(f'Consultando custos para {days_calc} dias em {dest}...'):
-            # Chama engine
-            total, breakdown, daily = engine.calculate_cost(dest, days_calc, travelers, style.lower(), currency)
+            # Chama engine COM o parâmetro de data para sazonalidade
+            total, breakdown, daily = engine.calculate_cost(dest, days_calc, travelers, style.lower(), currency, start_date)
             
         # --- O Resultado (Ticket) ---
         st.write("")
