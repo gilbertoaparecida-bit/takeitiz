@@ -2,21 +2,65 @@ import random
 from datetime import datetime
 
 # --- 1. BANCO DE DADOS INTELIGENTE (Mock Data) ---
+# Tier 1: Sudeste Asiático, Bolívia, Índia
+# Tier 2: América do Sul (capitais), Leste Europeu, África do Sul
+# Tier 3: Europa do Sul (PT, ES, IT), Brasil (Turístico), México
+# Tier 4: Europa do Norte (UK, FR, DE), Japão, Austrália, Canadá
+# Tier 5: Suíça, EUA (NY/SF/LA), Singapura, Escandinávia
+
 COST_TIERS = {
-    1: 60,   # Barato
-    2: 100,  # Médio-Baixo
-    3: 150,  # Médio
-    4: 220,  # Caro
-    5: 350   # Muito Caro
+    1: 50,   # Mochilão Roots / Ásia Econômica
+    2: 90,   # Médio-Baixo
+    3: 150,  # Médio (Referência Global)
+    4: 240,  # Caro
+    5: 380   # Muito Caro (Hubs Financeiros Globais)
 }
 
-# Dicionário de Cidades Conhecidas
+# Dicionário de Cidades Expandido (Variações PT/EN)
 KNOWN_CITIES = {
-    "nova york": 5, "new york": 5, "suíça": 5, "zurich": 5, "singapura": 5,
-    "paris": 4, "londres": 4, "london": 4, "amsterdam": 4, "dublin": 4, "toquio": 4,
-    "roma": 3, "rome": 3, "madrid": 3, "barcelona": 3, "lisboa": 3, "rio de janeiro": 3, "são paulo": 3,
-    "buenos aires": 2, "santiago": 2, "budapeste": 2, "praga": 2, "cancun": 2,
-    "la paz": 1, "bangkok": 1, "bali": 1, "hanoi": 1, "nordeste": 2
+    # TIER 5 - O Topo da Pirâmide
+    "nova york": 5, "new york": 5, "nyc": 5,
+    "suíça": 5, "suica": 5, "zurich": 5, "zurique": 5, "genebra": 5, "geneva": 5,
+    "singapura": 5, "singapore": 5,
+    "são francisco": 5, "san francisco": 5,
+    "oslo": 5, "copenhagen": 5, "reikjavik": 5, "islandia": 5,
+    
+    # TIER 4 - Metrópoles Caras
+    "paris": 4, 
+    "londres": 4, "london": 4,
+    "amsterdam": 4, "holanda": 4,
+    "dublin": 4, "irlanda": 4,
+    "toquio": 4, "tokyo": 4, "tokio": 4, # Corrigido para aceitar "Tokio"
+    "sidney": 4, "sydney": 4, "melbourne": 4,
+    "vancouver": 4, "toronto": 4,
+    "dubai": 4, 
+
+    # TIER 3 - O Padrão Turístico
+    "roma": 3, "rome": 3, "italia": 3,
+    "madrid": 3, "barcelona": 3, "espanha": 3,
+    "lisboa": 3, "lisbon": 3, "porto": 3, "portugal": 3,
+    "rio de janeiro": 3, "rio": 3, "rj": 3,
+    "são paulo": 3, "sao paulo": 3, "sp": 3,
+    "miami": 3, "orlando": 3, "disney": 3, # EUA fora dos grandes centros financeiros
+    "berlim": 3, "berlin": 3, "munique": 3,
+    
+    # TIER 2 - Custo Benefício
+    "buenos aires": 2, "argentina": 2,
+    "santiago": 2, "chile": 2,
+    "budapeste": 2, "hungria": 2,
+    "praga": 2, "republica tcheca": 2,
+    "cancun": 2, "mexico": 2,
+    "cidade do cabo": 2, "cape town": 2, "africa do sul": 2,
+    "istambul": 2, "turquia": 2,
+    "atenas": 2, "grecia": 2,
+
+    # TIER 1 - Econômicos
+    "la paz": 1, "bolivia": 1,
+    "bangkok": 1, "tailandia": 1, "phuket": 1,
+    "bali": 1, "indonesia": 1, "jacarta": 1, "jakarta": 1,
+    "hanoi": 1, "vietna": 1, "vietnam": 1,
+    "india": 1, "nova delhi": 1,
+    "cairo": 1, "egito": 1
 }
 
 # --- 2. CONFIGURAÇÕES DE MERCADO ---
@@ -33,38 +77,43 @@ CURRENCY_RATES = {
     "EUR": 0.92
 }
 
-# --- 3. LÓGICA DE SAZONALIDADE ---
+# --- 3. LÓGICA DE SAZONALIDADE (Refinada) ---
 def get_seasonality_factor(city_name, month):
     city = city_name.lower()
     factor = 1.0
     
-    # Alta Temporada Europa/EUA (Verão do Norte)
+    # Verão Norte (Jun-Ago)
     is_north_summer = month in [6, 7, 8]
-    # Alta Temporada América do Sul (Verão do Sul)
+    # Verão Sul (Dez-Fev)
     is_south_summer = month in [12, 1, 2]
     
-    europe_usa_keywords = ["paris", "londres", "york", "roma", "madrid", "lisboa", "amsterdam", "disney"]
-    south_america_keywords = ["rio", "paulo", "buenos", "santiago", "bahia", "nordeste"]
+    # Palavras-chave para identificar região
+    europe_usa = ["paris", "londres", "london", "york", "roma", "rome", "madrid", "lisboa", "lisbon", "amsterdam", "disney", "california", "berlim", "munique", "zurique", "zurich", "toquio", "tokyo"]
+    south_america = ["rio", "paulo", "buenos", "santiago", "bahia", "nordeste", "florianopolis", "cape town", "cidade do cabo"]
 
-    if any(k in city for k in europe_usa_keywords) and is_north_summer:
-        factor = 1.30
-    elif any(k in city for k in south_america_keywords) and is_south_summer:
-        factor = 1.30
+    if any(k in city for k in europe_usa) and is_north_summer:
+        factor = 1.30 # +30% Alta Norte
+    elif any(k in city for k in south_america) and is_south_summer:
+        factor = 1.30 # +30% Alta Sul
         
     return factor
 
 # --- 4. FUNÇÃO PRINCIPAL ---
-# Atenção: O erro acontece se esta definição não for encontrada
 def calculate_cost(dest, days, travelers, vibe, currency, start_date=None):
     
-    # A. Identificar o Custo Base
-    dest_lower = dest.lower()
-    tier = 3 
+    # A. Identificar o Custo Base (Normalização)
+    dest_lower = dest.lower().strip() # Remove espaços extras
+    tier = 3 # Default se não achar nada
     
+    found = False
     for key, val in KNOWN_CITIES.items():
         if key in dest_lower:
             tier = val
+            found = True
             break
+    
+    # Debug (se estivéssemos no console, veríamos se achou ou não)
+    # if not found: print(f"Cidade {dest} não encontrada. Usando Tier 3.")
             
     base_daily_cost_usd = COST_TIERS[tier]
     
@@ -78,27 +127,30 @@ def calculate_cost(dest, days, travelers, vibe, currency, start_date=None):
     
     # D. Cálculo Final
     daily_person_usd = base_daily_cost_usd * vibe_factor * season_factor
-    ticket_budget_usd = 15 * vibe_factor 
-    total_daily_person_usd = daily_person_usd + ticket_budget_usd
     
+    # Custo de Experiência (Tickets/Shows)
+    # Ajustado: Vibe Luxo gasta muito mais em tickets (teatro, passeios privados)
+    ticket_budget_usd = 20 * vibe_factor 
+    
+    total_daily_person_usd = daily_person_usd + ticket_budget_usd
     total_trip_usd = total_daily_person_usd * days * travelers
     
     # E. Conversão
     if currency == "BRL":
-        final_total = total_trip_usd * CURRENCY_RATES["BRL"]
-        final_daily = total_daily_person_usd * CURRENCY_RATES["BRL"]
+        rate = CURRENCY_RATES["BRL"]
     elif currency == "EUR":
-        final_total = total_trip_usd * 0.92 
-        final_daily = total_daily_person_usd * 0.92
+        rate = CURRENCY_RATES["EUR"]
     else:
-        final_total = total_trip_usd
-        final_daily = total_daily_person_usd
+        rate = 1.0
+        
+    final_total = total_trip_usd * rate
+    final_daily = total_daily_person_usd * rate
 
-    # F. Breakdown
+    # F. Breakdown Ajustado
     breakdown = {
-        "accom": final_total * 0.40,
+        "accom": final_total * 0.45,   # Hotel pesa mais no orçamento Luxo
         "food": final_total * 0.35,
-        "transport": final_total * 0.25 
+        "transport": final_total * 0.20
     }
     
     return final_total, breakdown, final_daily
