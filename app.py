@@ -37,6 +37,7 @@ st.markdown("""
     
     div.css-1r6slb0 {background-color: #FFFFFF; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
     
+    /* BOTÕES GRID */
     .amenity-btn {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         width: 100%; height: 100px; padding: 10px; background-color: #FFFFFF; color: #31333F !important;
@@ -57,6 +58,8 @@ st.markdown("""
 with st.container():
     st.markdown("## TakeItIz 🧳") 
     st.markdown("**Saiba quanto você vai gastar no destino escolhido.**")
+    # Ajuste solicitado: Aviso sobre passagens
+    st.caption("*(não inclui passagens aéreas)*")
     st.write("---")
 
 # --- Inputs ---
@@ -154,14 +157,13 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             c2.metric("🍽️ Comida", f"{int(bk['food']):,}")
             c3.metric("🚌 Lazer", f"{int(bk['transport'] + bk['activities'] + bk['misc']):,}")
             
-            # --- CÁLCULOS: VARIÁVEIS (Antiga Auditoria) ---
-            with st.expander("📊 Cálculos: variáveis"):
+            # --- CÁLCULOS: VARIÁVEIS ---
+            with st.expander("ℹ️ Como chegamos neste valor?"):
                 for log in result['audit']:
                     icon = "✅" if log['status'] == "OK" else "⚠️"
-                    # Exibição limpa, sem códigos técnicos
                     st.text(f"{icon} {log['msg']}")
 
-            # --- AMENITIES (GRID 2x2) ---
+            # --- AMENITIES (NOVO GRID OTIMIZADO) ---
             st.write("---")
             st.subheader(f"✨ Curadoria: {dest}")
             
@@ -171,36 +173,43 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 style=style.lower(), start_date=start_date
             )
             
-            # Linha 1
+            # Linha 1: Logística (Passagens + Hotel)
             row1_col1, row1_col2 = st.columns(2)
             with row1_col1:
+                st.markdown(f"""
+                <a href="{links['flight']}" target="_blank" class="amenity-btn">
+                    <span class="amenity-icon">✈️</span>
+                    <span class="amenity-text">{links['labels']['flight_label']}</span>
+                </a>""", unsafe_allow_html=True)
+            with row1_col2:
                 st.markdown(f"""
                 <a href="{links['hotel']}" target="_blank" class="amenity-btn">
                     <span class="amenity-icon">🛏️</span>
                     <span class="amenity-text">{links['labels']['hotel_label']}</span>
                 </a>""", unsafe_allow_html=True)
-            with row1_col2:
+            
+            # Linha 2: Experiência (Comida + Eventos)
+            row2_col1, row2_col2 = st.columns(2)
+            with row2_col1:
                 st.markdown(f"""
                 <a href="{links['food']}" target="_blank" class="amenity-btn">
                     <span class="amenity-icon">🍽️</span>
                     <span class="amenity-text">{links['labels']['food_label']}</span>
                 </a>""", unsafe_allow_html=True)
-            
-            # Linha 2
-            row2_col1, row2_col2 = st.columns(2)
-            with row2_col1:
+            with row2_col2:
                 st.markdown(f"""
                 <a href="{links['event']}" target="_blank" class="amenity-btn">
                     <span class="amenity-icon">📅</span>
                     <span class="amenity-text">{links['labels']['event_label']}</span>
                 </a>""", unsafe_allow_html=True)
-            with row2_col2:
-                st.markdown(f"""
-                <a href="{links['surprise']}" target="_blank" class="amenity-btn">
-                    <span class="amenity-icon">🎲</span>
-                    <span class="amenity-text">{links['labels']['surprise_label']}</span>
-                </a>""", unsafe_allow_html=True)
             
+            # Linha 3: Destaque
+            st.markdown(f"""
+            <a href="{links['surprise']}" target="_blank" class="amenity-btn">
+                <span class="amenity-icon">🎲</span>
+                <span class="amenity-text">{links['labels']['surprise_label']}</span>
+            </a>""", unsafe_allow_html=True)
+
             # Mapa
             st.markdown(f"""
             <a href="{links['attr']}" target="_blank">
