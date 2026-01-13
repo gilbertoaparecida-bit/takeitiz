@@ -18,7 +18,6 @@ st.set_page_config(
 def setup_pwa():
     APP_ICON_URL = "https://cdn-icons-png.flaticon.com/512/201/201623.png"
     
-    # Manifesto Android
     manifest = {
         "name": "TakeItIz",
         "short_name": "TakeItIz",
@@ -28,37 +27,53 @@ def setup_pwa():
         "theme_color": "#FFFFFF",
         "icons": [{"src": APP_ICON_URL, "sizes": "192x192", "type": "image/png"}]
     }
-    
     manifest_json = json.dumps(manifest)
     b64_manifest = base64.b64encode(manifest_json.encode()).decode()
     data_url = f"data:application/manifest+json;base64,{b64_manifest}"
 
-    # HTML MINIFICADO (Sem indentação para evitar bugs visuais)
+    # INJEÇÃO DE CSS INTELIGENTE
+    # A regra @media (display-mode: standalone) esconde o ID #install-banner
     meta_tags = f"""
-<head>
-<meta name="apple-mobile-web-app-title" content="TakeItIz">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="apple-touch-icon" href="{APP_ICON_URL}">
-<link rel="manifest" href="{data_url}">
-</head>
+    <head>
+        <meta name="apple-mobile-web-app-title" content="TakeItIz">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+        <link rel="apple-touch-icon" href="{APP_ICON_URL}">
+        <link rel="manifest" href="{data_url}">
+        <style>
+            @media all and (display-mode: standalone) {{
+                #install-banner {{ display: none !important; }}
+            }}
+        </style>
+    </head>
     """
     st.markdown(meta_tags, unsafe_allow_html=True)
 
-    # Instruções (Recolhido)
-    with st.expander("📲 Instalar App (Tela Cheia)", expanded=False):
-        st.caption("Devido à hospedagem gratuita, o ícone de instalação pode aparecer como 'Streamlit', mas o app funcionará normalmente.")
-        col_ios, col_android = st.columns(2)
-        with col_ios:
-            st.markdown("**iPhone**")
-            st.caption("1. Botão **Compartilhar**")
-            st.caption("2. **Adicionar à Tela de Início**")
-        with col_android:
-            st.markdown("**Android**")
-            st.caption("1. Menu **(3 pontos)**")
-            st.caption("2. **Adicionar à Tela Inicial**")
+    # BANNER EM HTML (Para podermos esconder via CSS)
+    # Substituímos o st.expander por esse HTML 'details' estilizado
+    st.markdown("""
+    <div id="install-banner" style="border: 1px solid #f0f2f6; border-radius: 10px; padding: 10px; margin-bottom: 20px; background-color: white;">
+        <details>
+            <summary style="cursor: pointer; font-weight: bold; color: #31333F;">📲 Instalar App (Tela Cheia)</summary>
+            <div style="margin-top: 10px; font-size: 14px; color: #555;">
+                <p>O ícone de instalação pode aparecer temporariamente como 'Streamlit', mas o app funcionará em tela cheia.</p>
+                <div style="display: flex; gap: 20px;">
+                    <div>
+                        <strong>iPhone:</strong><br>
+                        1. Botão Compartilhar<br>
+                        2. Adicionar à Tela de Início
+                    </div>
+                    <div>
+                        <strong>Android:</strong><br>
+                        1. Menu (3 pontos)<br>
+                        2. Adicionar à Tela Inicial
+                    </div>
+                </div>
+            </div>
+        </details>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Executa
 setup_pwa()
 
 # --- CSS ELEGANCE ---
@@ -67,13 +82,12 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    .block-container {padding-top: 1.0rem !important; padding-bottom: 3rem !important;}
+    .block-container {padding-top: 0.5rem !important; padding-bottom: 3rem !important;}
     
     .stButton > button {width: 100%; border-radius: 12px; height: 3.5em; font-weight: bold;}
     
     div.css-1r6slb0 {background-color: #FFFFFF; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
     
-    /* BOTÕES GRID */
     .amenity-btn {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         width: 100%; height: 100px; padding: 10px; background-color: #FFFFFF; color: #31333F !important;
@@ -198,7 +212,7 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                     icon = "✅" if log['status'] == "OK" else "⚠️"
                     st.text(f"{icon} {log['msg']}")
 
-            # --- AMENITIES (GRID OTIMIZADO) ---
+            # --- AMENITIES ---
             st.write("---")
             st.subheader(f"✨ Curadoria: {dest}")
             
@@ -208,45 +222,18 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 style=style.lower(), start_date=start_date
             )
             
-            # Linha 1: Logística
             row1_col1, row1_col2 = st.columns(2)
             with row1_col1:
-                st.markdown(f"""
-                <a href="{links['flight']}" target="_blank" class="amenity-btn">
-                    <span class="amenity-icon">✈️</span>
-                    <span class="amenity-text">{links['labels']['flight_label']}</span>
-                </a>""", unsafe_allow_html=True)
+                st.markdown(f'<a href="{links["flight"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">✈️</span><span class="amenity-text">{links["labels"]["flight_label"]}</span></a>', unsafe_allow_html=True)
             with row1_col2:
-                st.markdown(f"""
-                <a href="{links['hotel']}" target="_blank" class="amenity-btn">
-                    <span class="amenity-icon">🛏️</span>
-                    <span class="amenity-text">{links['labels']['hotel_label']}</span>
-                </a>""", unsafe_allow_html=True)
+                st.markdown(f'<a href="{links["hotel"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">🛏️</span><span class="amenity-text">{links["labels"]["hotel_label"]}</span></a>', unsafe_allow_html=True)
             
-            # Linha 2: Experiência
             row2_col1, row2_col2 = st.columns(2)
             with row2_col1:
-                st.markdown(f"""
-                <a href="{links['food']}" target="_blank" class="amenity-btn">
-                    <span class="amenity-icon">🍽️</span>
-                    <span class="amenity-text">{links['labels']['food_label']}</span>
-                </a>""", unsafe_allow_html=True)
+                st.markdown(f'<a href="{links["food"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">🍽️</span><span class="amenity-text">{links["labels"]["food_label"]}</span></a>', unsafe_allow_html=True)
             with row2_col2:
-                st.markdown(f"""
-                <a href="{links['event']}" target="_blank" class="amenity-btn">
-                    <span class="amenity-icon">📅</span>
-                    <span class="amenity-text">{links['labels']['event_label']}</span>
-                </a>""", unsafe_allow_html=True)
+                st.markdown(f'<a href="{links["event"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">📅</span><span class="amenity-text">{links["labels"]["event_label"]}</span></a>', unsafe_allow_html=True)
             
-            # Linha 3: Destaque
-            st.markdown(f"""
-            <a href="{links['surprise']}" target="_blank" class="amenity-btn">
-                <span class="amenity-icon">🎲</span>
-                <span class="amenity-text">{links['labels']['surprise_label']}</span>
-            </a>""", unsafe_allow_html=True)
+            st.markdown(f'<a href="{links["surprise"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">🎲</span><span class="amenity-text">{links["labels"]["surprise_label"]}</span></a>', unsafe_allow_html=True)
 
-            # Mapa
-            st.markdown(f"""
-            <a href="{links['attr']}" target="_blank">
-                <button style="width: 100%; background-color: white; color: #1E88E5; border: 2px solid #1E88E5; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold; margin-top: 10px;">📍 Ver Mapa de Atrações</button>
-            </a>""", unsafe_allow_html=True)
+            st.markdown(f'<a href="{links["attr"]}" target="_blank"><button style="width: 100%; background-color: white; color: #1E88E5; border: 2px solid #1E88E5; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold; margin-top: 10px;">📍 Ver Mapa de Atrações</button></a>', unsafe_allow_html=True)
