@@ -5,7 +5,6 @@ import numpy as np
 import requests_cache
 from datetime import datetime
 from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut
 
 # --- CONFIGURAÇÃO ---
 requests_cache.install_cache('takeitiz_cache', expire_after=3600)
@@ -13,11 +12,7 @@ logging.basicConfig(level=logging.INFO)
 
 # --- 1. A ÂNCORA (GLOBAL BASELINE) ---
 BASE_SPEND_USD_ANCHOR = {
-    'food': 45.0,       
-    'transport': 12.0,  
-    'activities': 25.0, 
-    'nightlife': 0.0,   
-    'misc': 8.0         
+    'food': 45.0, 'transport': 12.0, 'activities': 25.0, 'nightlife': 0.0, 'misc': 8.0
 }
 
 # --- 2. CONFIGURAÇÕES ---
@@ -40,11 +35,9 @@ class StyleConfig:
     }
 
 # --- 3. PROVEDORES ---
-
 class FXProvider:
     def __init__(self):
         self.audit = []
-
     def get_rate(self, target_currency):
         if target_currency == "USD": return 1.0
         try:
@@ -66,49 +59,29 @@ class FXProvider:
                     self.audit.append({"src": "CÂMBIO", "msg": f"Conversão Euro/Dólar atualizada: € 1,00 = U$ {eur_usd:.2f}", "status": "OK"})
                     return rate
         except: pass
-        
         fallback = {"BRL": 6.15, "EUR": 0.92}
         val = fallback.get(target_currency, 1.0)
         self.audit.append({"src": "CÂMBIO", "msg": f"Usando taxa de referência padrão: {val}", "status": "WARN"})
         return val
 
 class OnlineGeoLocator:
-    """Novo Detetive Geográfico usando OpenStreetMap"""
     def __init__(self):
-        # User agent é obrigatório para não ser bloqueado
-        self.geolocator = Nominatim(user_agent="takeitiz_app_v1")
-        
-        # Mapa de Regiões para converter País -> Índice
+        self.geolocator = Nominatim(user_agent="takeitiz_app_v2")
         self.COUNTRY_MAP = {
-            'br': 'brasil', 'brazil': 'brasil',
-            'us': 'america do norte', 'usa': 'america do norte', 'canada': 'america do norte',
-            'pt': 'europa', 'fr': 'europa', 'it': 'europa', 'de': 'europa', 'es': 'europa', 'uk': 'europa', 'gb': 'europa',
-            'ar': 'america do sul', 'cl': 'america do sul', 'uy': 'america do sul', 'pe': 'america do sul',
-            'jp': 'asia', 'cn': 'asia', 'th': 'asia', 'vn': 'asia', 'id': 'asia', 'in': 'asia', 'np': 'asia', # Nepal
-            'ae': 'oriente medio', 'qa': 'oriente medio', 'sa': 'oriente medio', 'om': 'oriente medio',
-            'au': 'oceania', 'nz': 'oceania',
-            'za': 'africa', 'eg': 'africa', 'ma': 'africa'
+            'br': 'brasil', 'us': 'america do norte', 'gb': 'europa', 'fr': 'europa', 
+            'it': 'europa', 'de': 'europa', 'es': 'europa', 'pt': 'europa',
+            'jp': 'asia', 'cn': 'asia', 'ae': 'oriente medio', 'qa': 'oriente medio',
+            'ar': 'america do sul', 'cl': 'america do sul'
         }
 
     def identify_region(self, city_name):
         try:
-            # Busca na internet (Timeout de 2s para não travar o app)
             location = self.geolocator.geocode(city_name, language='en', timeout=2)
             if location:
-                # O Nominatim devolve o endereço completo. Vamos tentar achar o país.
                 address = location.raw.get('address', {})
-                country_code = location.raw.get('address', {}).get('country_code', '').lower()
-                
-                # Se não veio no address, tenta extrair do display_name
-                if not country_code:
-                    parts = location.address.split(',')
-                    possible_country = parts[-1].strip().lower()
-                    # Tentativa simplificada de mapear nomes de países seria complexa aqui,
-                    # vamos confiar no country_code do OpenStreetMaps que é robusto.
-                
+                country_code = address.get('country_code', '').lower()
                 if country_code in self.COUNTRY_MAP:
                     return self.COUNTRY_MAP[country_code], location.address
-                
                 return "default", location.address
         except:
             return None, None
@@ -119,31 +92,35 @@ class GeoCostProvider:
         self.audit = []
         self.online_locator = OnlineGeoLocator()
         
-        # --- BASE DE CONHECIMENTO MANUAL (PRIORIDADE ALTA) ---
+        # --- BASE DE CONHECIMENTO BILÍNGUE 🇧🇷/🇺🇸 ---
         self.INDICES = {
-            'zurique': 210, 'genebra': 200, 'suíça': 205,
-            'nova york': 190, 'nyc': 190,
-            'londres': 175, 'paris': 160, 'amsterdam': 155,
-            'roma': 115, 'barcelona': 105, 'madrid': 100, 'lisboa': 95,
+            # EUA / América do Norte
+            'nova york': 190, 'new york': 190, 'nyc': 190,
             'miami': 130, 'orlando': 125, 'disney': 135,
             
+            # Europa
+            'londres': 175, 'london': 175,
+            'paris': 160, 'amsterdam': 155,
+            'zurique': 210, 'zurich': 210, 'genebra': 200, 'geneva': 200,
+            'roma': 115, 'rome': 115, 'milao': 120, 'milan': 120,
+            'barcelona': 105, 'madrid': 100, 'lisboa': 95, 'lisbon': 95,
+            
             # Oriente Médio
-            'dubai': 150, 'abu dhabi': 145, 'emirados': 145,
-            'doha': 140, 'qatar': 140, 'riad': 110, 'tel aviv': 160,
+            'dubai': 150, 'abu dhabi': 145,
+            'doha': 140, 'qatar': 140, 'catar': 140,
+            'tel aviv': 160, 'jerusalem': 140,
             
             # Brasil
             'fernando de noronha': 135, 'noronha': 135,
             'trancoso': 110, 'gramado': 95, 'campos do jordao': 95,
             'sao paulo': 80, 'sp': 80, 'rio de janeiro': 85, 'rio': 85,
             'brasilia': 80, 'florianopolis': 85, 'bonito': 90,
-            'salvador': 70, 'recife': 65, 'fortaleza': 65, 'maceio': 70,
-            'porto de galinhas': 80, 'natal': 65, 'balneario camboriu': 85,
-            'belo horizonte': 65, 'curitiba': 70, 'manaus': 70,
-            'ouro preto': 60, 'tiradentes': 65, 'paraty': 75,
+            'salvador': 70, 'recife': 65, 'fortaleza': 65,
             
             # Latam/Asia
             'buenos aires': 55, 'santiago': 70, 'cancun': 110,
-            'bangkok': 55, 'tailandia': 55, 'bali': 50,
+            'bangkok': 55, 'tailandia': 55, 'thailand': 55,
+            'toquio': 145, 'tokyo': 145, 'bali': 50
         }
         
         self.REGIONAL_FALLBACK = {
@@ -155,30 +132,22 @@ class GeoCostProvider:
     def get_index(self, destination):
         dest_clean = destination.lower().strip()
         
-        # 1. TENTATIVA MANUAL (Instantânea e Curada)
+        # 1. Busca Exata (Dicionário Expandido)
         for city, idx in self.INDICES.items():
             if city in dest_clean:
                 self.audit.append({"src": "LOCAL", "msg": f"Custo de vida local identificado: {city.title()} (Índice {idx})", "status": "OK"})
                 return idx, "high"
         
-        # 2. TENTATIVA ONLINE (O Pulo do Gato 🐈)
-        # Se não achou na lista, pergunta pra internet
+        # 2. Tentativa Online
         self.audit.append({"src": "WEB", "msg": "Destino fora da base. Consultando satélite...", "status": "INFO"})
         region_found, full_address = self.online_locator.identify_region(destination)
-        
         if region_found and region_found in self.REGIONAL_FALLBACK:
             idx = self.REGIONAL_FALLBACK[region_found]
-            # Extrai o país do endereço para mostrar no log
-            pais_display = full_address.split(",")[-1].strip() if full_address else region_found.title()
-            self.audit.append({"src": "WEB", "msg": f"Localizado via satélite: {pais_display} -> Padrão {region_found.title()}", "status": "OK"})
+            self.audit.append({"src": "WEB", "msg": f"Localizado via satélite: {region_found.title()} -> Usando média regional", "status": "OK"})
             return idx, "medium"
 
-        # 3. TENTATIVA FALLBACK (Se a internet falhar ou não achar país)
-        region = "default"
-        if any(x in dest_clean for x in ['brasil', 'brazil']): region = 'brasil'
-        # ... (Mantendo fallbacks de texto simples como segurança extra)
-        
-        idx = self.REGIONAL_FALLBACK.get(region, 100)
+        # 3. Fallback
+        idx = 100
         self.audit.append({"src": "LOCAL", "msg": f"Usando média global (Destino não mapeado)", "status": "WARN"})
         return idx, "low"
 
