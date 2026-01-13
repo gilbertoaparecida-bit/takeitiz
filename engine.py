@@ -9,17 +9,17 @@ from datetime import datetime
 from geopy.geocoders import Nominatim
 
 # --- CONFIGURAÇÃO ---
-# Cache para evitar chamadas repetitivas nas APIs (dura 1 hora)
+# Cache global para APIs de geolocalização (dura 1 hora)
 requests_cache.install_cache('takeitiz_cache', expire_after=3600)
 logging.basicConfig(level=logging.INFO)
 
 # --- 1. A ÂNCORA (GLOBAL BASELINE) ---
-# Base: Madrid (100) - Gastos diários em Dólar para perfil Moderado
+# Base: Madrid (100)
 BASE_SPEND_USD_ANCHOR = {
     'food': 45.0, 'transport': 12.0, 'activities': 25.0, 'nightlife': 0.0, 'misc': 8.0
 }
 
-# --- 2. CONFIGURAÇÕES DE ESTILO E VIBE ---
+# --- 2. CONFIGURAÇÕES ---
 class VibeConfig:
     MULTIPLIERS = {
         'tourist_mix': {'food': 1.0, 'transport': 1.0, 'activities': 1.0, 'nightlife': 0.5, 'misc': 1.0},
@@ -38,37 +38,43 @@ class StyleConfig:
         'luxo':      {'factor': 3.20, 'hotel_pct': 0.95},
     }
 
-# --- 3. PROVEDOR DE CÂMBIO (COM BACKUP) ---
+# --- 3. PROVEDOR DE CÂMBIO (COM BACKUP ROBUSTO) ---
 class FXProvider:
     def __init__(self):
         self.audit = []
         
     def _get_backup_rate(self, target_currency):
-        """Consulta a AwesomeAPI (BC/Fechamento) se o Yahoo falhar."""
-        try:
-            # Mapeamento: BRL busca USD-BRL, EUR busca EUR-USD
-            pair_map = {"BRL": "USD-BRL", "EUR": "EUR-USD"}
-            pair = pair_map.get(target_currency)
-            if not pair: return None
-            
-            url = f"https://economia.awesomeapi.com.br/last/{pair}"
-            response = requests.get(url, timeout=3)
-            data = response.json()
-            
-            key = pair.replace("-", "")
-            if target_currency == "BRL":
-                return float(data[key]['ask'])
-            elif target_currency == "EUR":
-                # Inverte pois a API dá EUR em USD, queremos USD em EUR
-                return 1 / float(data[key]['ask'])
-        except:
-            return None
+        """Consulta a AwesomeAPI (BC/Fechamento) ignorando cache."""
+        # IMPORTANTE: Desabilita cache para garantir tentativa limpa
+        with requests_cache.disabled():
+            try:
+                pair_map = {"BRL": "USD-BRL", "EUR": "EUR-USD"}
+                pair = pair_map.get(target_currency)
+                if not pair: return None
+                
+                url = f"https://economia.awesomeapi.com.br/last/{pair}"
+                # Timeout aumentado para 5s para conexões lentas
+                response = requests.get(url, timeout=5)
+                response.raise_for_status() # Aciona erro se for 404/500
+                
+                data = response.json()
+                key = pair.replace("-", "")
+                
+                if target_currency == "BRL":
+                    return float(data[key]['ask'])
+                elif target_currency == "EUR":
+                    return 1 / float(data[key]['ask'])
+            except Exception as e:
+                # Loga o erro real no audit para sabermos O QUE aconteceu
+                self.audit.append({"src": "DEBUG", "msg": f"Erro no Backup: {str(e)}", "status": "WARN"})
+                return None
 
     def get_rate(self, target_currency):
         self.audit = []
         if target_currency == "USD": return 1.0
         
         # 1. Tenta Yahoo Finance (Tempo Real)
+        # Usamos cache aqui para não bombardear o Yahoo
         try:
             import yfinance as yf
             if target_currency == "BRL":
@@ -88,14 +94,14 @@ class FXProvider:
                     return rate
         except: pass
 
-        # 2. Tenta Backup (AwesomeAPI)
+        # 2. Tenta Backup (AwesomeAPI - Sem Cache)
         backup = self._get_backup_rate(target_currency)
         if backup:
             final = backup * 1.045 if target_currency == "BRL" else backup
             self.audit.append({"src": "CÂMBIO", "msg": f"⚠️ Yahoo instável. Usando Backup (BC): {final:.2f}", "status": "INFO"})
             return final
 
-        # 3. Fallback Fixo (Emergência)
+        # 3. Fallback Fixo (Emergência Absoluta)
         fallback = {"BRL": 6.15, "EUR": 0.92}
         val = fallback.get(target_currency, 1.0)
         self.audit.append({"src": "CÂMBIO", "msg": f"⛔ APIs Offline. Usando taxa fixa: {val}", "status": "WARN"})
@@ -104,8 +110,7 @@ class FXProvider:
 # --- 4. GEOLOCALIZAÇÃO E PERFIL CLIMÁTICO ---
 class OnlineGeoLocator:
     def __init__(self):
-        self.geolocator = Nominatim(user_agent="takeitiz_app_v7_mobile")
-        # Mapa auxiliar para inferir clima pelo país
+        self.geolocator = Nominatim(user_agent="takeitiz_app_v8_failsafe")
         self.COUNTRY_PROFILE_MAP = {
             'br': 'sul_tropical', 'ar': 'sul_tropical', 'cl': 'sul_tropical', 'uy': 'sul_tropical',
             'au': 'sul_tropical', 'za': 'sul_tropical', 'nz': 'sul_tropical',
@@ -123,7 +128,6 @@ class OnlineGeoLocator:
                 address = location.raw.get('address', {})
                 country = address.get('country_code', '').lower()
                 state = address.get('state', '').lower()
-                # Exceção Flórida
                 if country == 'us' and 'florida' in state: return 'inverno_fugitivo', location.address
                 return self.COUNTRY_PROFILE_MAP.get(country, 'padrao'), location.address
         except: return None, None
@@ -135,7 +139,6 @@ class GeoCostProvider:
         self.online_locator = OnlineGeoLocator()
         
         # --- MATRIZ DE CALOR (Sazonalidade) ---
-        # Índices 0 a 11 correspondem a Jan a Dez
         self.SEASONALITY_MATRIX = {
             'norte_temperado': [0.85, 0.85, 0.95, 1.10, 1.20, 1.40, 1.50, 1.50, 1.30, 1.10, 0.95, 1.30],
             'sul_tropical':    [1.50, 1.40, 1.10, 1.00, 0.90, 0.90, 1.30, 1.00, 1.05, 1.10, 1.20, 1.50],
@@ -153,7 +156,7 @@ class GeoCostProvider:
             'europa': 'norte_temperado', 'usa': 'norte_temperado', 'canada': 'norte_temperado'
         }
 
-        # --- BANCO DE DADOS UNIFICADO (Europa + Américas + Ásia + Brasil) ---
+        # --- BANCO DE DADOS UNIFICADO ---
         self.RAW_INDICES = {
             # EUROPA
             "madrid": 100, "barcelona": 112, "sevilha": 95, "seville": 95, "valencia": 98,
@@ -182,7 +185,7 @@ class GeoCostProvider:
             "seychelles": 170, "sidney": 160, "sydney": 160, "melbourne": 150, "auckland": 150,
             "papeete": 175, "bora bora": 180,
 
-            # BRASIL (DESTAQUES DO ARQUIVO COMPLETO)
+            # BRASIL (SELEÇÃO)
             "fernando de noronha": 170, "noronha": 170, "trancoso": 150, "buzios": 140,
             "jurere": 135, "sao miguel dos milagres": 135, "angra dos reis": 130,
             "campos do jordao": 130, "gramado": 125, "maragogi": 125, "itacare": 125,
@@ -239,7 +242,7 @@ class GeoCostProvider:
 
         return idx, profile
 
-# --- 5. PREÇO DE HOTELARIA (Curva Exponencial) ---
+# --- 5. PREÇO DE HOTELARIA ---
 class AccommodationProvider:
     def __init__(self):
         self.audit = []
@@ -260,7 +263,7 @@ class CostEngine:
     def calculate_cost(self, destination, days, travelers, style, currency, vibe="tourist_mix", start_date=None):
         self.audit_log = []
         
-        # 1. Câmbio (com Failover)
+        # 1. Câmbio
         usd_rate = self.fx.get_rate(currency)
         self.audit_log.extend(self.fx.audit)
         
@@ -268,7 +271,7 @@ class CostEngine:
         idx, profile = self.geo.get_index_and_profile(destination)
         self.audit_log.extend(self.geo.audit)
         
-        # 3. Sazonalidade (Matriz)
+        # 3. Sazonalidade
         season_factor = 1.0
         if start_date:
             month_idx = start_date.month - 1
@@ -279,22 +282,19 @@ class CostEngine:
             sign = "+" if pct > 0 else ""
             self.audit_log.append({"src": "DATA", "msg": f"Sazonalidade ({start_date.strftime('%B')}) [{profile}]: {sign}{pct}%", "status": "INFO"})
 
-        # 4. Cálculo Final
+        # 4. Cálculo
         style_cfg = StyleConfig.SETTINGS.get(style.lower(), StyleConfig.SETTINGS['moderado'])
         vibe_mult = VibeConfig.MULTIPLIERS.get(vibe.lower(), VibeConfig.MULTIPLIERS['tourist_mix'])
         
         breakdown_usd = {}
         daily_life_usd = 0
-        
         for cat, base in BASE_SPEND_USD_ANCHOR.items():
-            # Sazonalidade afeta 50% do lifestyle
             life_season = 1 + (season_factor - 1) * 0.5
             val = base * (idx / 100.0) * style_cfg['factor'] * vibe_mult[cat] * life_season
             breakdown_usd[cat] = val
             daily_life_usd += val
             
         rooms = math.ceil(travelers / 2)
-        # Sazonalidade afeta 100% do hotel
         adr_usd = self.hotel.estimate_adr(idx, style_cfg['hotel_pct']) * season_factor
         
         total_hotel = adr_usd * rooms * days
