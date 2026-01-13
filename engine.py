@@ -7,6 +7,7 @@ import requests_cache
 import unicodedata
 from datetime import datetime
 from geopy.geocoders import Nominatim
+import database
 
 # --- CONFIGURAÇÃO ---
 requests_cache.install_cache('takeitiz_cache', expire_after=3600)
@@ -64,7 +65,7 @@ class FXProvider:
                 return None
 
     def get_rate(self, target_currency):
-        self.audit = [] # LIMPEZA DE MEMÓRIA (Vital)
+        self.audit = [] 
         if target_currency == "USD": return 1.0
         
         try:
@@ -128,119 +129,70 @@ class GeoCostProvider:
         self.audit = []
         self.online_locator = OnlineGeoLocator()
         
+        # MATRIZ DE SAZONALIDADE INTELIGENTE (Meses 0 a 11 / Jan a Dez)
+        # Lógica: Base 1.0 = Preço Padrão de Alta Temporada.
+        # Valores < 1.0 = Descontos de Baixa/Média Temporada.
+        # Valores > 1.0 = Apenas leve ágio para Pico Extremo.
+        
         self.SEASONALITY_MATRIX = {
-            'norte_temperado': [0.85, 0.85, 0.95, 1.10, 1.20, 1.40, 1.50, 1.50, 1.30, 1.10, 0.95, 1.30],
-            'sul_tropical':    [1.50, 1.40, 1.10, 1.00, 0.90, 0.90, 1.30, 1.00, 1.05, 1.10, 1.20, 1.50],
-            'inverno_fugitivo':[1.40, 1.40, 1.30, 1.20, 1.00, 0.90, 1.00, 0.85, 0.80, 0.85, 1.10, 1.50],
-            'padrao':          [1.0, 1.0, 1.0, 1.0, 1.0, 1.1, 1.1, 1.1, 1.0, 1.0, 1.0, 1.1]
+            # EUA/Europa: Baixa no inverno (Jan-Mar), Média na Primavera/Outono, Alta no Verão
+            'norte_temperado': [0.80, 0.80, 0.90, 0.95, 1.00, 1.10, 1.15, 1.15, 1.00, 0.95, 0.85, 1.00],
+            
+            # Brasil Praia/Verão: Alta no verão, Baixa no outono, Repique em Julho
+            'sul_tropical':    [1.10, 1.05, 0.90, 0.85, 0.80, 0.80, 1.00, 0.85, 0.90, 0.95, 1.00, 1.10],
+            
+            # Caribe/Nordeste Top: Foge do inverno do norte. Alta no começo do ano.
+            'inverno_fugitivo':[1.10, 1.10, 1.05, 0.95, 0.85, 0.80, 0.90, 0.80, 0.75, 0.85, 0.95, 1.15],
+            
+            # Serras (Gramado/Bariloche): Baixa no verão, Graduação no Outono, Pico no Inverno
+            'sul_frio':        [0.80, 0.75, 0.80, 0.90, 0.95, 1.05, 1.15, 1.00, 0.90, 0.85, 1.00, 1.05],
+            
+            # Padrão Mundial (Sem sazonalidade agressiva)
+            'padrao':          [1.0, 1.0, 1.0, 1.0, 1.0, 1.05, 1.05, 1.05, 1.0, 1.0, 1.0, 1.05]
         }
         
-        # --- MAPA MANUAL EXPANDIDO (Para não depender do satélite nas principais) ---
-        self.MANUAL_PROFILE_MAP = {
-            # SUL
-            'brasil': 'sul_tropical', 'brazil': 'sul_tropical', 'maragogi': 'sul_tropical', 
-            'noronha': 'sul_tropical', 'rio': 'sul_tropical', 'sp': 'sul_tropical', 'gramado': 'sul_tropical',
-            'argentina': 'sul_tropical', 'buenos aires': 'sul_tropical', 'santiago': 'sul_tropical',
-            # INVERNO FUGITIVO
-            'miami': 'inverno_fugitivo', 'orlando': 'inverno_fugitivo', 'cancun': 'inverno_fugitivo', 
-            'dubai': 'inverno_fugitivo', 'thailand': 'inverno_fugitivo', 'tailandia': 'inverno_fugitivo',
-            # NORTE (Adicionado as capitais europeias aqui para garantir)
-            'europa': 'norte_temperado', 'usa': 'norte_temperado', 'canada': 'norte_temperado',
-            'madrid': 'norte_temperado', 'barcelona': 'norte_temperado', 'lisboa': 'norte_temperado', 
-            'londres': 'norte_temperado', 'london': 'norte_temperado', 'paris': 'norte_temperado',
-            'roma': 'norte_temperado', 'nova york': 'norte_temperado', 'new york': 'norte_temperado'
-        }
-
-        # --- BANCO DE DADOS COMPLETO ---
-        self.RAW_INDICES = {
-            "madrid": 100, "barcelona": 112, "sevilha": 95, "seville": 95, "valencia": 98,
-            "lisboa": 95, "lisbon": 95, "porto": 88, "faro": 90, "paris": 160, "nice": 135,
-            "londres": 175, "london": 175, "manchester": 135, "edimburgo": 150, "dublin": 155,
-            "amsterda": 155, "amsterdam": 155, "bruxelas": 125, "berlim": 120, "munique": 150,
-            "roma": 135, "rome": 135, "milao": 145, "veneza": 160, "florenca": 140,
-            "zurique": 200, "zurich": 200, "genebra": 195, "viena": 145, "praga": 110,
-            "atenas": 105, "santorini": 140, "istambul": 90, "moscou": 120,
-
-            "nova york": 190, "new york": 190, "nyc": 190, "los angeles": 160, "sao francisco": 185,
-            "miami": 155, "orlando": 135, "las vegas": 145, "chicago": 150, "washington": 165,
-            "honolulu": 200, "toronto": 160, "vancouver": 170, "cancun": 120, "tulum": 135,
-            "cidade do mexico": 80, "havana": 75, "punta cana": 125, "buenos aires": 95,
-            "bariloche": 120, "mendoza": 90, "santiago": 120, "san pedro de atacama": 135,
-            "cartagena": 100, "bogota": 80, "cusco": 90, "lima": 85, "montevideo": 120,
-            "punta del este": 145, "ushuaia": 125,
-
-            "dubai": 140, "abu dhabi": 130, "doha": 150, "tel aviv": 175, "jerusalem": 150,
-            "toquio": 150, "tokyo": 150, "osaka": 140, "seul": 140, "pequim": 115, "xangai": 130,
-            "hong kong": 170, "bangkok": 80, "phuket": 105, "chiang mai": 70, "singapura": 160,
-            "bali": 75, "jacarta": 80, "hanoi": 70, "ho chi minh": 75, "maldivas": 185, "male": 185,
-            "nova delhi": 70, "mumbai": 85, "cidade do cabo": 95, "marraquexe": 85, "cairo": 80,
-            "seychelles": 170, "sidney": 160, "sydney": 160, "melbourne": 150, "auckland": 150,
-            "papeete": 175, "bora bora": 180,
-
-            "fernando de noronha": 170, "noronha": 170, "trancoso": 150, "buzios": 140,
-            "jurere": 135, "sao miguel dos milagres": 135, "angra dos reis": 130,
-            "campos do jordao": 130, "gramado": 125, "maragogi": 125, "itacare": 125,
-            "praia do forte": 125, "rio de janeiro": 110, "rio": 110, "sao paulo": 105,
-            "sp": 105, "brasilia": 105, "florianopolis": 105, "recife": 90, "salvador": 90,
-            "fortaleza": 90, "manaus": 85, "foz do iguacu": 80, "ouro preto": 95,
-            "tiradentes": 105, "bonito": 110, "jalapao": 100, "lencois maranhenses": 105,
-            "pipa": 115, "jericoacoara": 110, "capitolio": 95, "porto seguro": 120,
-            "arraial d ajuda": 135, "caraiva": 140, "morro de sao paulo": 130,
-            "ilhabela": 120, "paraty": 115, "petropolis": 115, "visconde de maua": 115,
-            "alter do chao": 95, "chapada dos veadeiros": 95, "pirenopolis": 95,
-            "ubatuba": 110, "maresias": 125, "juquehy": 130, "monte verde": 115,
-            "balneario camboriu": 120, "bombinhas": 120, "canela": 120
-        }
-
     def _normalize(self, text):
         return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn').lower().strip()
 
     def get_index_and_profile(self, destination):
-        # AQUI ESTAVA O PROBLEMA: Faltava limpar o audit anterior
-        self.audit = [] # <--- CORREÇÃO DO FANTASMA
-        
+        self.audit = [] 
         dest_clean = self._normalize(destination)
-        idx = 100
-        profile = 'padrao'
-        found_idx = False
-        found_profile = False
-
-        # 1. Busca Índice (Local)
-        for city, val in self.RAW_INDICES.items():
-            if self._normalize(city) in dest_clean:
-                idx = val
-                found_idx = True
-                self.audit.append({"src": "LOCAL", "msg": f"Custo local: {city.title()} (Índice {idx})", "status": "OK"})
-                break
         
-        # 2. Busca Perfil Climático (Manual - Prioridade)
-        for key, prof in self.MANUAL_PROFILE_MAP.items():
-            if key in dest_clean:
-                profile = prof
-                found_profile = True
-                self.audit.append({"src": "SISTEMA", "msg": f"Perfil Climático (Manual): {prof.upper()}", "status": "OK"})
-                break
+        # 1. Busca Exata no Database (Otimizado)
+        # Tenta match exato ou "contém"
+        for city_key, data in database.CITIES.items():
+            if self._normalize(city_key) == dest_clean or (len(city_key) > 4 and self._normalize(city_key) in dest_clean):
+                self.audit.append({"src": "DATABASE", "msg": f"Dados locais encontrados: {city_key.title()}", "status": "OK"})
+                return data['idx'], data['profile']
+
+        # 2. Busca por Inferência (Fallback Rápido)
+        if "brasil" in dest_clean or "brazil" in dest_clean or any(x in dest_clean for x in [" sp", " rj", " mg", " rs", " ba", " sc"]):
+             self.audit.append({"src": "SISTEMA", "msg": "Cidade BR não mapeada. Usando média nacional.", "status": "INFO"})
+             return database.DEFAULTS['BR']['idx'], database.DEFAULTS['BR']['profile']
+             
+        if "usa" in dest_clean or "estados unidos" in dest_clean:
+            return database.DEFAULTS['US']['idx'], database.DEFAULTS['US']['profile']
+
+        # 3. Busca por Satélite (Fallback Lento)
+        self.audit.append({"src": "WEB", "msg": "Consultando satélite para local desconhecido...", "status": "INFO"})
+        prof, address = self.online_locator.identify_profile(destination)
         
-        # 3. Busca Perfil Climático (Web - Fallback)
-        if not found_profile:
-            self.audit.append({"src": "WEB", "msg": "Consultando satélite para clima...", "status": "INFO"})
-            prof, _ = self.online_locator.identify_profile(destination)
-            if prof:
-                profile = prof
-                self.audit.append({"src": "WEB", "msg": f"Perfil Climático (Web): {prof.upper()}", "status": "OK"})
+        idx = 100 # Padrão Madrid
+        if prof:
+            self.audit.append({"src": "WEB", "msg": f"Localizado: {address[:30]}...", "status": "OK"})
+            if prof == 'sul_tropical': idx = 95
+            if prof == 'norte_temperado': idx = 115
+            return idx, prof
 
-        if not found_idx and not found_profile and 'brasil' in dest_clean:
-             idx = 85
-             profile = 'sul_tropical'
-
-        return idx, profile
+        self.audit.append({"src": "SISTEMA", "msg": "Local não encontrado. Usando base mundial.", "status": "WARN"})
+        return 100, 'padrao'
 
 # --- 5. PREÇO DE HOTELARIA ---
 class AccommodationProvider:
     def __init__(self):
         self.audit = []
     def estimate_adr(self, price_index, style_pct):
-        self.audit = [] # Limpeza de Segurança
+        self.audit = [] 
         BASE_HOTEL_USD = 120.0
         city_factor = price_index / 100.0
         style_factor = np.exp(1.6 * (style_pct - 0.45))
@@ -272,9 +224,14 @@ class CostEngine:
             matrix = self.geo.SEASONALITY_MATRIX.get(profile, self.geo.SEASONALITY_MATRIX['padrao'])
             season_factor = matrix[month_idx]
             
+            # Cálculo de Porcentagem para Log
             pct = int((season_factor - 1) * 100)
             sign = "+" if pct > 0 else ""
-            self.audit_log.append({"src": "DATA", "msg": f"Sazonalidade ({start_date.strftime('%B')}) [{profile}]: {sign}{pct}%", "status": "INFO"})
+            msg_sazonal = "Média Temporada"
+            if pct <= -10: msg_sazonal = "Baixa Temporada (Desconto)"
+            if pct >= 10: msg_sazonal = "Alta Temporada (Pico)"
+            
+            self.audit_log.append({"src": "DATA", "msg": f"Sazonalidade ({start_date.strftime('%B')}) [{profile}]: {sign}{pct}% - {msg_sazonal}", "status": "INFO"})
 
         # 4. Cálculo
         style_cfg = StyleConfig.SETTINGS.get(style.lower(), StyleConfig.SETTINGS['moderado'])
@@ -284,12 +241,14 @@ class CostEngine:
         daily_life_usd = 0
         
         for cat, base in BASE_SPEND_USD_ANCHOR.items():
+            # A sazonalidade afeta menos a comida/lazer do que o hotel (peso 0.5)
             life_season = 1 + (season_factor - 1) * 0.5
             val = base * (idx / 100.0) * style_cfg['factor'] * vibe_mult[cat] * life_season
             breakdown_usd[cat] = val
             daily_life_usd += val
             
         rooms = math.ceil(travelers / 2)
+        # Hotel absorve a sazonalidade cheia (peso 1.0)
         adr_usd = self.hotel.estimate_adr(idx, style_cfg['hotel_pct']) * season_factor
         
         total_hotel = adr_usd * rooms * days
