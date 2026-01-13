@@ -3,8 +3,10 @@ import engine
 import amenities
 import share
 from datetime import date, timedelta
+import base64
+import json
 
-# --- Configuração da Página ---
+# --- Configuração da Página (Título da Aba) ---
 st.set_page_config(
     page_title="TakeItIz",
     page_icon="🧳",
@@ -12,38 +14,70 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- FUNÇÃO PWA (APP NATIVO) ---
+# --- FUNÇÃO PWA AVANÇADA (Manifest Injection) ---
 def setup_pwa():
-    # 1. Injeção de Meta Tags para funcionar como App (Tela Cheia)
-    # Esta parte é invisível e faz a mágica por trás dos panos
-    meta_tags = """
+    # URL do Ícone (Deve ser PNG e Quadrado)
+    # Dica: Hospede sua logo definitiva no GitHub ou Imgur para garantir estabilidade
+    APP_ICON_URL = "https://cdn-icons-png.flaticon.com/512/201/201623.png"
+    
+    # 1. Definição do Manifesto Android (JSON)
+    manifest = {
+        "name": "TakeItIz - Planejador",
+        "short_name": "TakeItIz",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#FFFFFF",
+        "theme_color": "#FFFFFF",
+        "description": "Planeje sua viagem com inteligência financeira.",
+        "icons": [
+            {
+                "src": APP_ICON_URL,
+                "sizes": "192x192",
+                "type": "image/png"
+            },
+            {
+                "src": APP_ICON_URL,
+                "sizes": "512x512",
+                "type": "image/png"
+            }
+        ]
+    }
+    
+    # Converte o JSON para String e depois para Base64
+    manifest_json = json.dumps(manifest)
+    b64_manifest = base64.b64encode(manifest_json.encode()).decode()
+    data_url = f"data:application/manifest+json;base64,{b64_manifest}"
+
+    # 2. Injeção de Meta Tags (iOS + Android Manifest)
+    meta_tags = f"""
     <head>
         <meta name="apple-mobile-web-app-title" content="TakeItIz">
-        <meta name="application-name" content="TakeItIz">
         <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/201/201623.png">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+        <link rel="apple-touch-icon" href="{APP_ICON_URL}">
+        
+        <link rel="manifest" href="{data_url}">
+        
+        <meta name="theme-color" content="#FFFFFF">
     </head>
     """
     st.markdown(meta_tags, unsafe_allow_html=True)
 
-    # 2. Instruções de Instalação (Discreto e sob demanda)
-    # CORREÇÃO UX: expanded=False para começar recolhido
-    with st.expander("📲 Instalar como Aplicativo (iOS & Android)", expanded=False):
+    # 3. Instruções de Instalação (Discreto)
+    with st.expander("📲 Instalar App (Ter ícone próprio na tela)", expanded=False):
         col_ios, col_android = st.columns(2)
         with col_ios:
-            st.markdown("**iPhone (iOS)**")
-            st.caption("1. Clique em **Compartilhar** (quadrado com seta)")
-            st.caption("2. Escolha **'Adicionar à Tela de Início'**")
+            st.markdown("**iPhone**")
+            st.caption("1. Botão **Compartilhar**")
+            st.caption("2. **Adicionar à Tela de Início**")
+            st.caption("3. Confirme que o nome é **TakeItIz**")
         with col_android:
             st.markdown("**Android**")
-            st.caption("1. Clique nos **3 pontinhos** do navegador")
-            st.caption("2. Escolha **'Adicionar à Tela Inicial'**")
-        
-        st.caption("Isso fará o TakeItIz abrir em tela cheia, sem a barra do navegador.")
+            st.caption("1. Botão **Menu (3 pontos)**")
+            st.caption("2. **Adicionar à Tela Inicial**")
+            st.caption("Wait! O ícone da mala aparecerá.")
 
-# Executa a configuração PWA
+# Executa a configuração
 setup_pwa()
 
 # --- CSS ELEGANCE ---
