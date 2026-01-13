@@ -3,6 +3,7 @@ import logging
 import math
 import numpy as np
 import requests_cache
+import unicodedata
 from datetime import datetime
 from geopy.geocoders import Nominatim
 
@@ -11,6 +12,7 @@ requests_cache.install_cache('takeitiz_cache', expire_after=3600)
 logging.basicConfig(level=logging.INFO)
 
 # --- 1. A ÂNCORA (GLOBAL BASELINE) ---
+# Base: Madrid (100)
 BASE_SPEND_USD_ANCHOR = {
     'food': 45.0, 'transport': 12.0, 'activities': 25.0, 'nightlife': 0.0, 'misc': 8.0
 }
@@ -66,12 +68,12 @@ class FXProvider:
 
 class OnlineGeoLocator:
     def __init__(self):
-        self.geolocator = Nominatim(user_agent="takeitiz_app_v2")
+        self.geolocator = Nominatim(user_agent="takeitiz_app_v3_global")
         self.COUNTRY_MAP = {
             'br': 'brasil', 'us': 'america do norte', 'gb': 'europa', 'fr': 'europa', 
             'it': 'europa', 'de': 'europa', 'es': 'europa', 'pt': 'europa',
             'jp': 'asia', 'cn': 'asia', 'ae': 'oriente medio', 'qa': 'oriente medio',
-            'ar': 'america do sul', 'cl': 'america do sul'
+            'ar': 'america do sul', 'cl': 'america do sul', 'au': 'oceania', 'nz': 'oceania'
         }
 
     def identify_region(self, city_name):
@@ -92,55 +94,75 @@ class GeoCostProvider:
         self.audit = []
         self.online_locator = OnlineGeoLocator()
         
-        # --- BASE DE CONHECIMENTO BILÍNGUE 🇧🇷/🇺🇸 ---
-        self.INDICES = {
-            # EUA / América do Norte
-            'nova york': 190, 'new york': 190, 'nyc': 190,
-            'miami': 130, 'orlando': 125, 'disney': 135,
-            
-            # Europa
-            'londres': 175, 'london': 175,
-            'paris': 160, 'amsterdam': 155,
-            'zurique': 210, 'zurich': 210, 'genebra': 200, 'geneva': 200,
-            'roma': 115, 'rome': 115, 'milao': 120, 'milan': 120,
-            'barcelona': 105, 'madrid': 100, 'lisboa': 95, 'lisbon': 95,
-            
-            # Oriente Médio
-            'dubai': 150, 'abu dhabi': 145,
-            'doha': 140, 'qatar': 140, 'catar': 140,
-            'tel aviv': 160, 'jerusalem': 140,
-            
-            # Brasil
-            'fernando de noronha': 135, 'noronha': 135,
-            'trancoso': 110, 'gramado': 95, 'campos do jordao': 95,
-            'sao paulo': 80, 'sp': 80, 'rio de janeiro': 85, 'rio': 85,
-            'brasilia': 80, 'florianopolis': 85, 'bonito': 90,
-            'salvador': 70, 'recife': 65, 'fortaleza': 65,
-            
-            # Latam/Asia
-            'buenos aires': 55, 'santiago': 70, 'cancun': 110,
-            'bangkok': 55, 'tailandia': 55, 'thailand': 55,
-            'toquio': 145, 'tokyo': 145, 'bali': 50
+        # --- BASE DE DADOS GLOBAL UNIFICADA (MADRID=100) ---
+        # Inclui Europa, Américas, Ásia/África e Brasil Profundo
+        self.RAW_INDICES = {
+            # EUROPA
+            "madrid": 100, "barcelona": 112, "sevilha": 95, "seville": 95, "valencia": 98, "malaga": 97, "granada": 88,
+            "bilbao": 108, "sao sebastiao": 125, "san sebastian": 125, "palma de maiorca": 120, "ibiza": 135,
+            "santiago de compostela": 90, "lisboa": 95, "lisbon": 95, "porto": 88, "faro": 90, "funchal": 105,
+            "paris": 160, "nice": 135, "lyon": 125, "marselha": 118, "bordeaux": 130, "cannes": 155,
+            "londres": 175, "london": 175, "edimburgo": 150, "manchester": 135, "dublin": 155,
+            "amsterda": 155, "amsterdam": 155, "bruxelas": 125, "berlim": 120, "munique": 150, "frankfurt": 130,
+            "roma": 135, "rome": 135, "milao": 145, "milan": 145, "veneza": 160, "florenca": 140, "napoles": 115,
+            "zurique": 200, "zurich": 200, "genebra": 195, "viena": 145, "praga": 110, "budapeste": 95,
+            "atenas": 105, "santorini": 140, "istambul": 90, "copenhague": 180, "estocolmo": 170, "oslo": 175,
+            "reiquiavique": 190, "reykjavik": 190, "moscou": 120, "moscow": 120,
+
+            # AMERICAS
+            "nova york": 190, "new york": 190, "nyc": 190, "los angeles": 160, "sao francisco": 185, "las vegas": 145,
+            "miami": 155, "orlando": 135, "chicago": 150, "washington": 165, "boston": 170, "honolulu": 200,
+            "toronto": 160, "vancouver": 170, "montreal": 135, "cancun": 120, "tulum": 135, "cidade do mexico": 80,
+            "punta cana": 125, "havana": 75, "nassau": 170, "buenos aires": 95, "bariloche": 120, "mendoza": 90,
+            "santiago": 120, "san pedro de atacama": 135, "cartagena": 100, "bogota": 80, "cusco": 90, "lima": 85,
+            "montevideo": 120, "punta del este": 145,
+
+            # ASIA / AFRICA / OCEANIA
+            "dubai": 140, "abu dhabi": 130, "doha": 150, "tel aviv": 175, "jerusalem": 150,
+            "toquio": 150, "tokyo": 150, "osaka": 140, "seul": 140, "pequim": 115, "xangai": 130, "hong kong": 170,
+            "bangkok": 80, "phuket": 105, "chiang mai": 70, "singapura": 160, "bali": 75, "jacarta": 80,
+            "hanoi": 70, "ho chi minh": 75, "maldivas": 185, "male": 185, "nova delhi": 70, "mumbai": 85,
+            "cidade do cabo": 95, "marraquexe": 85, "cairo": 80, "seychelles": 170, "vitoria seychelles": 170,
+            "sidney": 160, "sydney": 160, "melbourne": 150, "auckland": 150, "papeete": 175, "bora bora": 180,
+
+            # BRASIL (Destaques)
+            "fernando de noronha": 170, "noronha": 170, "trancoso": 150, "buzios": 140, "jurere": 135,
+            "sao miguel dos milagres": 135, "angra dos reis": 130, "campos do jordao": 130,
+            "gramado": 125, "maragogi": 125, "itacare": 125, "praia do forte": 125,
+            "rio de janeiro": 110, "rio": 110, "sao paulo": 105, "sp": 105, "brasilia": 105,
+            "florianopolis": 105, "recife": 90, "salvador": 90, "fortaleza": 90, "manaus": 85,
+            "foz do iguacu": 80, "ouro preto": 95, "tiradentes": 105, "bonito": 110, "jalapao": 100,
+            "lencois maranhenses": 105, "pipa": 115, "jericoacoara": 110, "capitolio": 95,
+            "porto seguro": 120, "arraial d ajuda": 135, "caraiva": 140, "morro de sao paulo": 130,
+            "ilhabela": 120, "paraty": 115, "petropolis": 115, "visconde de maua": 115
         }
         
         self.REGIONAL_FALLBACK = {
             'oriente medio': 100, 'europa': 120, 'america do norte': 150, 
-            'america do sul': 65, 'brasil': 65, 'asia': 55, 
-            'africa': 50, 'oceania': 140, 'default': 100
+            'america do sul': 85, 'brasil': 85, 'asia': 75, 
+            'africa': 80, 'oceania': 140, 'default': 100
         }
 
+    def _normalize(self, text):
+        # Remove acentos e joga pra minúsculo (ex: "São Paulo" -> "sao paulo")
+        return ''.join(c for c in unicodedata.normalize('NFD', text)
+                      if unicodedata.category(c) != 'Mn').lower().strip()
+
     def get_index(self, destination):
-        dest_clean = destination.lower().strip()
+        # Normaliza a entrada do usuário
+        dest_clean = self._normalize(destination)
         
-        # 1. Busca Exata (Dicionário Expandido)
-        for city, idx in self.INDICES.items():
-            if city in dest_clean:
-                self.audit.append({"src": "LOCAL", "msg": f"Custo de vida local identificado: {city.title()} (Índice {idx})", "status": "OK"})
+        # 1. Busca Exata
+        # Varre o dicionário normalizando as chaves também
+        for city, idx in self.RAW_INDICES.items():
+            if self._normalize(city) == dest_clean or self._normalize(city) in dest_clean:
+                self.audit.append({"src": "LOCAL", "msg": f"Custo local identificado: {city.title()} (Índice {idx})", "status": "OK"})
                 return idx, "high"
         
         # 2. Tentativa Online
         self.audit.append({"src": "WEB", "msg": "Destino fora da base. Consultando satélite...", "status": "INFO"})
         region_found, full_address = self.online_locator.identify_region(destination)
+        
         if region_found and region_found in self.REGIONAL_FALLBACK:
             idx = self.REGIONAL_FALLBACK[region_found]
             self.audit.append({"src": "WEB", "msg": f"Localizado via satélite: {region_found.title()} -> Usando média regional", "status": "OK"})
