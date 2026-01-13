@@ -14,6 +14,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- FUNÇÕES UTILITÁRIAS ---
+def format_brl(value, currency_symbol):
+    """Transforma 1200.50 em 1.200,50"""
+    val_str = f"{value:,.2f}"
+    val_str = val_str.replace(',', 'X').replace('.', ',').replace('X', '.')
+    return f"{currency_symbol} {val_str}"
+
 # --- FUNÇÃO PWA (APP NATIVO) ---
 def setup_pwa():
     APP_ICON_URL = "https://cdn-icons-png.flaticon.com/512/201/201623.png"
@@ -31,8 +38,6 @@ def setup_pwa():
     b64_manifest = base64.b64encode(manifest_json.encode()).decode()
     data_url = f"data:application/manifest+json;base64,{b64_manifest}"
 
-    # INJEÇÃO DE CSS INTELIGENTE
-    # A regra @media (display-mode: standalone) esconde o ID #install-banner
     meta_tags = f"""
     <head>
         <meta name="apple-mobile-web-app-title" content="TakeItIz">
@@ -49,25 +54,15 @@ def setup_pwa():
     """
     st.markdown(meta_tags, unsafe_allow_html=True)
 
-    # BANNER EM HTML (Para podermos esconder via CSS)
-    # Substituímos o st.expander por esse HTML 'details' estilizado
     st.markdown("""
     <div id="install-banner" style="border: 1px solid #f0f2f6; border-radius: 10px; padding: 10px; margin-bottom: 20px; background-color: white;">
         <details>
             <summary style="cursor: pointer; font-weight: bold; color: #31333F;">📲 Instalar App (Tela Cheia)</summary>
             <div style="margin-top: 10px; font-size: 14px; color: #555;">
-                <p>O ícone de instalação pode aparecer temporariamente como 'Streamlit', mas o app funcionará em tela cheia.</p>
+                <p>O app funcionará melhor se adicionado à tela de início.</p>
                 <div style="display: flex; gap: 20px;">
-                    <div>
-                        <strong>iPhone:</strong><br>
-                        1. Botão Compartilhar<br>
-                        2. Adicionar à Tela de Início
-                    </div>
-                    <div>
-                        <strong>Android:</strong><br>
-                        1. Menu (3 pontos)<br>
-                        2. Adicionar à Tela Inicial
-                    </div>
+                    <div><strong>iPhone:</strong> Compartilhar > Tela de Início</div>
+                    <div><strong>Android:</strong> Menu > Instalar App</div>
                 </div>
             </div>
         </details>
@@ -76,7 +71,7 @@ def setup_pwa():
 
 setup_pwa()
 
-# --- CSS ELEGANCE ---
+# --- CSS REFINADO (GRID SYSTEM REAL & TYPOGRAPHY) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -84,35 +79,71 @@ st.markdown("""
     header {visibility: hidden;}
     .block-container {padding-top: 0.5rem !important; padding-bottom: 3rem !important;}
     
-    .stButton > button {width: 100%; border-radius: 12px; height: 3.5em; font-weight: bold;}
+    /* Botão Principal */
+    .stButton > button {
+        width: 100%; border-radius: 12px; height: 3.5em; font-weight: bold;
+        background-color: #1E88E5; color: white; border: none;
+    }
+    .stButton > button:hover { background-color: #1565C0; }
     
-    div.css-1r6slb0 {background-color: #FFFFFF; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
+    /* Container Geral */
+    div.css-1r6slb0 {
+        background-color: #FFFFFF; border-radius: 15px; 
+        padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
     
+    /* GRID REAL PARA AMENITIES (Força 2 colunas no mobile) */
+    .amenity-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    
+    /* Botões do Grid */
     .amenity-btn {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        width: 100%; height: 100px; padding: 10px; background-color: #FFFFFF; color: #31333F !important;
+        width: 100%; height: 85px; 
+        padding: 5px; background-color: #FFFFFF; color: #31333F !important;
         text-align: center; border-radius: 12px; text-decoration: none !important;
-        font-weight: 600; border: 1px solid #E0E0E0; margin-bottom: 0px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s ease-in-out;
+        font-weight: 600; border: 1px solid #E0E0E0; 
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s ease-in-out;
     }
-    .amenity-btn:hover, .amenity-btn:active {
-        background-color: #F8F9FB; border-color: #1E88E5; color: #1E88E5 !important;
-        transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    .amenity-btn:hover {
+        background-color: #F0F7FF; border-color: #1E88E5; color: #1E88E5 !important;
+        transform: translateY(-2px);
     }
-    .amenity-icon { font-size: 24px; margin-bottom: 5px; }
-    .amenity-text { font-size: 13px; line-height: 1.2; }
+    .amenity-icon { font-size: 24px; margin-bottom: 4px; }
+    .amenity-text { font-size: 12px; line-height: 1.1; font-weight: 500; }
+    
+    /* Tipografia de Preço */
+    .price-hero {
+        font-family: 'Roboto', sans-serif; font-size: 42px; font-weight: 800;
+        color: #1E88E5; text-align: center; line-height: 1.0; margin-bottom: 5px;
+    }
+    .price-sub {
+        font-size: 14px; color: #757575; text-align: center; margin-bottom: 20px;
+    }
+    
+    /* Titulo da Marca (Aumentado) */
+    .brand-title {
+        font-size: 32px; font-weight: 900; color: #31333F; letter-spacing: -1px; margin-bottom: 0px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # --- Cabeçalho ---
 with st.container():
-    st.markdown("## TakeItIz 🧳") 
+    c1, c2 = st.columns([0.85, 0.15])
+    with c1:
+        st.markdown('<div class="brand-title">TakeItIz 🧳</div>', unsafe_allow_html=True)
+    
     st.markdown("**Saiba quanto você vai gastar no destino escolhido.**")
     st.caption("*(não inclui passagens aéreas)*")
     st.write("---")
 
 # --- Inputs ---
-dest = st.text_input("Para onde vamos?", placeholder="Ex: Nova York, Paris, Londres...")
+dest = st.text_input("Para onde vamos?", placeholder="Ex: Miami, Paris, Cancún...")
 
 # Datas
 today = date.today()
@@ -146,18 +177,16 @@ vibe_key_map = {
 }
 
 st.write("") 
-
-# --- ÁREA DE NOTIFICAÇÃO ---
 msg_placeholder = st.empty() 
 
 # --- Botão Calcular ---
 if st.button("💰 Calcular Orçamento", type="primary"):
     
     if not dest:
-        msg_placeholder.error("⚠️ Ei, faltou dizer o destino acima!")
+        msg_placeholder.error("⚠️ Ei, você esqueceu de incluir o destino!")
         
     else:
-        with st.spinner('Consultando índices e câmbio atualizados...'):
+        with st.spinner('Consultando índices globais e câmbio...'):
             result = engine.engine.calculate_cost(
                 destination=dest, days=days_calc, travelers=travelers,
                 style=style.lower(), currency=currency,
@@ -165,22 +194,20 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             )
             costs = result
             
-            msg_placeholder.success("✅ Orçamento pronto! Role para baixo 👇")
+            msg_placeholder.success("✅ Cálculo concluído. Role a página. 👇")
             
-        # --- Resultado ---
+        # --- Resultado (NOVO LAYOUT) ---
         st.write("")
         with st.container():
             st.markdown(f"### 🎫 Orçamento: {dest}")
             st.caption(f"{days_calc} dias • {travelers} pessoas • {style}")
             
-            total_fmt = f"{currency} {costs['total']:,.2f}"
-            st.metric(label="Investimento Total Estimado", value=total_fmt)
+            # --- 1. PREÇO HERO (Por Pessoa/Dia) ---
+            daily_fmt = format_brl(costs['daily_avg'], currency)
+            total_fmt = format_brl(costs['total'], currency)
             
-            r_low, r_high = costs['range']
-            st.caption(f"Faixa provável: {currency} {r_low:,.0f} - {r_high:,.0f}")
-            
-            daily_fmt = f"{currency} {costs['daily_avg']:,.2f}"
-            st.info(f"💡 Custo médio por pessoa/dia: **{daily_fmt}**")
+            st.markdown(f'<div class="price-hero">{daily_fmt}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="price-sub">por pessoa / dia<br>Total Estimado: {total_fmt}</div>', unsafe_allow_html=True)
             
             # --- SHARE TICKET ---
             ticket_gen = share.TicketGenerator()
@@ -191,28 +218,34 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             )
             
             st.download_button(
-                label="📸 Baixar Ticket Oficial",
+                label="📸 Baixar Ticket (Story)",
                 data=ticket_img,
-                file_name=f"ticket_takeitiz_{dest}.png",
+                file_name=f"takeitiz_{dest}.png",
                 mime="image/png",
                 use_container_width=True
             )
 
-            st.markdown("---")
-            
-            bk = costs['breakdown']
-            c1, c2, c3 = st.columns(3)
-            c1.metric("🏨 Hotel", f"{int(bk['lodging']):,}")
-            c2.metric("🍽️ Comida", f"{int(bk['food']):,}")
-            c3.metric("🚌 Lazer", f"{int(bk['transport'] + bk['activities'] + bk['misc']):,}")
-            
-            # --- CÁLCULOS: VARIÁVEIS ---
-            with st.expander("ℹ️ Como chegamos neste valor?"):
+            # --- BREAKDOWN ---
+            with st.expander("📊 Detalhes do Custo"):
+                bk = costs['breakdown']
+                c1, c2, c3 = st.columns(3)
+                
+                # Formatação simples para os cards pequenos
+                h_val = f"{int(bk['lodging']):,}".replace(',', '.')
+                f_val = f"{int(bk['food']):,}".replace(',', '.')
+                l_val = f"{int(bk['transport'] + bk['activities'] + bk['misc']):,}".replace(',', '.')
+
+                c1.metric("🏨 Hotel", h_val)
+                c2.metric("🍽️ Comida", f_val)
+                c3.metric("🚌 Lazer", l_val)
+                
+                st.divider()
+                st.caption("ℹ️ Memória de Cálculo (Auditoria):")
                 for log in result['audit']:
                     icon = "✅" if log['status'] == "OK" else "⚠️"
                     st.text(f"{icon} {log['msg']}")
 
-            # --- AMENITIES ---
+            # --- AMENITIES (GRID LAYOUT HTML PURO) ---
             st.write("---")
             st.subheader(f"✨ Curadoria: {dest}")
             
@@ -222,18 +255,31 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 style=style.lower(), start_date=start_date
             )
             
-            row1_col1, row1_col2 = st.columns(2)
-            with row1_col1:
-                st.markdown(f'<a href="{links["flight"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">✈️</span><span class="amenity-text">{links["labels"]["flight_label"]}</span></a>', unsafe_allow_html=True)
-            with row1_col2:
-                st.markdown(f'<a href="{links["hotel"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">🛏️</span><span class="amenity-text">{links["labels"]["hotel_label"]}</span></a>', unsafe_allow_html=True)
+            # Grid Manual em HTML (Garante 2 colunas no Mobile)
+            html_grid = f"""
+            <div class="amenity-grid">
+                <a href="{links["flight"]}" target="_blank" class="amenity-btn">
+                    <span class="amenity-icon">✈️</span><span class="amenity-text">{links["labels"]["flight_label"]}</span>
+                </a>
+                <a href="{links["hotel"]}" target="_blank" class="amenity-btn">
+                    <span class="amenity-icon">🛏️</span><span class="amenity-text">{links["labels"]["hotel_label"]}</span>
+                </a>
+                <a href="{links["food"]}" target="_blank" class="amenity-btn">
+                    <span class="amenity-icon">🍽️</span><span class="amenity-text">{links["labels"]["food_label"]}</span>
+                </a>
+                <a href="{links["event"]}" target="_blank" class="amenity-btn">
+                    <span class="amenity-icon">📅</span><span class="amenity-text">{links["labels"]["event_label"]}</span>
+                </a>
+            </div>
             
-            row2_col1, row2_col2 = st.columns(2)
-            with row2_col1:
-                st.markdown(f'<a href="{links["food"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">🍽️</span><span class="amenity-text">{links["labels"]["food_label"]}</span></a>', unsafe_allow_html=True)
-            with row2_col2:
-                st.markdown(f'<a href="{links["event"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">📅</span><span class="amenity-text">{links["labels"]["event_label"]}</span></a>', unsafe_allow_html=True)
-            
-            st.markdown(f'<a href="{links["surprise"]}" target="_blank" class="amenity-btn"><span class="amenity-icon">🎲</span><span class="amenity-text">{links["labels"]["surprise_label"]}</span></a>', unsafe_allow_html=True)
+            <a href="{links["surprise"]}" target="_blank" class="amenity-btn" style="height: auto; padding: 12px; background-color: #FFF3E0; border-color: #FFB74D; margin-bottom: 15px;">
+                <span class="amenity-icon">🎲</span><span class="amenity-text">{links["labels"]["surprise_label"]}</span>
+            </a>
 
-            st.markdown(f'<a href="{links["attr"]}" target="_blank"><button style="width: 100%; background-color: white; color: #1E88E5; border: 2px solid #1E88E5; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold; margin-top: 10px;">📍 Ver Mapa de Atrações</button></a>', unsafe_allow_html=True)
+            <a href="{links["attr"]}" target="_blank">
+                <button style="width: 100%; background-color: white; color: #1E88E5; border: 2px solid #1E88E5; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold;">
+                📍 Ver Mapa de Atrações
+                </button>
+            </a>
+            """
+            st.markdown(html_grid, unsafe_allow_html=True)

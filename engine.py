@@ -2,7 +2,9 @@ import time
 import logging
 import math
 import numpy as np
+import requests
 import requests_cache
+import unicodedata
 from datetime import datetime
 from geopy.geocoders import Nominatim
 
@@ -34,12 +36,37 @@ class StyleConfig:
         'luxo':      {'factor': 3.20, 'hotel_pct': 0.95},
     }
 
-# --- 3. PROVEDORES ---
+# --- 3. PROVEDOR DE CÂMBIO ---
 class FXProvider:
     def __init__(self):
         self.audit = []
+        
+    def _get_backup_rate(self, target_currency):
+        with requests_cache.disabled():
+            try:
+                pair_map = {"BRL": "USD-BRL", "EUR": "EUR-USD"}
+                pair = pair_map.get(target_currency)
+                if not pair: return None
+                
+                url = f"https://economia.awesomeapi.com.br/last/{pair}"
+                response = requests.get(url, timeout=5)
+                response.raise_for_status()
+                
+                data = response.json()
+                key = pair.replace("-", "")
+                
+                if target_currency == "BRL":
+                    return float(data[key]['ask'])
+                elif target_currency == "EUR":
+                    return 1 / float(data[key]['ask'])
+            except Exception as e:
+                self.audit.append({"src": "DEBUG", "msg": f"Erro Backup: {str(e)}", "status": "WARN"})
+                return None
+
     def get_rate(self, target_currency):
+        self.audit = [] # LIMPEZA DE MEMÓRIA (Vital)
         if target_currency == "USD": return 1.0
+        
         try:
             import yfinance as yf
             if target_currency == "BRL":
@@ -47,44 +74,53 @@ class FXProvider:
                 hist = ticker.history(period="1d")
                 if not hist.empty:
                     rate = hist['Close'].iloc[-1]
-                    final_rate = rate * 1.045
-                    self.audit.append({"src": "CÂMBIO", "msg": f"Cotação Dólar Turismo aplicada: R$ {final_rate:.2f}", "status": "OK"})
-                    return final_rate
+                    final = rate * 1.045
+                    self.audit.append({"src": "CÂMBIO", "msg": f"Cotação Yahoo (Live): R$ {final:.2f}", "status": "OK"})
+                    return final
             elif target_currency == "EUR":
                 ticker = yf.Ticker("EURUSD=X")
                 hist = ticker.history(period="1d")
                 if not hist.empty:
-                    eur_usd = hist['Close'].iloc[-1]
-                    rate = 1 / eur_usd
-                    self.audit.append({"src": "CÂMBIO", "msg": f"Conversão Euro/Dólar atualizada: € 1,00 = U$ {eur_usd:.2f}", "status": "OK"})
+                    rate = 1 / hist['Close'].iloc[-1]
+                    self.audit.append({"src": "CÂMBIO", "msg": f"Cotação Yahoo (Live): € {rate:.2f}", "status": "OK"})
                     return rate
         except: pass
+
+        backup = self._get_backup_rate(target_currency)
+        if backup:
+            final = backup * 1.045 if target_currency == "BRL" else backup
+            self.audit.append({"src": "CÂMBIO", "msg": f"⚠️ Yahoo instável. Usando Backup (BC): {final:.2f}", "status": "INFO"})
+            return final
+
         fallback = {"BRL": 6.15, "EUR": 0.92}
         val = fallback.get(target_currency, 1.0)
-        self.audit.append({"src": "CÂMBIO", "msg": f"Usando taxa de referência padrão: {val}", "status": "WARN"})
+        self.audit.append({"src": "CÂMBIO", "msg": f"⛔ APIs Offline. Usando taxa fixa: {val}", "status": "WARN"})
         return val
 
+# --- 4. GEOLOCALIZAÇÃO E PERFIL CLIMÁTICO ---
 class OnlineGeoLocator:
     def __init__(self):
-        self.geolocator = Nominatim(user_agent="takeitiz_app_v2")
-        self.COUNTRY_MAP = {
-            'br': 'brasil', 'us': 'america do norte', 'gb': 'europa', 'fr': 'europa', 
-            'it': 'europa', 'de': 'europa', 'es': 'europa', 'pt': 'europa',
-            'jp': 'asia', 'cn': 'asia', 'ae': 'oriente medio', 'qa': 'oriente medio',
-            'ar': 'america do sul', 'cl': 'america do sul'
+        self.geolocator = Nominatim(user_agent="takeitiz_app_v9_clean")
+        self.COUNTRY_PROFILE_MAP = {
+            'br': 'sul_tropical', 'ar': 'sul_tropical', 'cl': 'sul_tropical', 'uy': 'sul_tropical',
+            'au': 'sul_tropical', 'za': 'sul_tropical', 'nz': 'sul_tropical',
+            'us': 'norte_temperado', 'ca': 'norte_temperado', 'gb': 'norte_temperado', 
+            'fr': 'norte_temperado', 'es': 'norte_temperado', 'it': 'norte_temperado', 
+            'pt': 'norte_temperado', 'de': 'norte_temperado',
+            'th': 'inverno_fugitivo', 'ae': 'inverno_fugitivo', 'mx': 'inverno_fugitivo',
+            'do': 'inverno_fugitivo', 'mv': 'inverno_fugitivo'
         }
 
-    def identify_region(self, city_name):
+    def identify_profile(self, city_name):
         try:
             location = self.geolocator.geocode(city_name, language='en', timeout=2)
             if location:
                 address = location.raw.get('address', {})
-                country_code = address.get('country_code', '').lower()
-                if country_code in self.COUNTRY_MAP:
-                    return self.COUNTRY_MAP[country_code], location.address
-                return "default", location.address
-        except:
-            return None, None
+                country = address.get('country_code', '').lower()
+                state = address.get('state', '').lower()
+                if country == 'us' and 'florida' in state: return 'inverno_fugitivo', location.address
+                return self.COUNTRY_PROFILE_MAP.get(country, 'padrao'), location.address
+        except: return None, None
         return None, None
 
 class GeoCostProvider:
@@ -92,77 +128,125 @@ class GeoCostProvider:
         self.audit = []
         self.online_locator = OnlineGeoLocator()
         
-        # --- BASE DE CONHECIMENTO BILÍNGUE 🇧🇷/🇺🇸 ---
-        self.INDICES = {
-            # EUA / América do Norte
-            'nova york': 190, 'new york': 190, 'nyc': 190,
-            'miami': 130, 'orlando': 125, 'disney': 135,
-            
-            # Europa
-            'londres': 175, 'london': 175,
-            'paris': 160, 'amsterdam': 155,
-            'zurique': 210, 'zurich': 210, 'genebra': 200, 'geneva': 200,
-            'roma': 115, 'rome': 115, 'milao': 120, 'milan': 120,
-            'barcelona': 105, 'madrid': 100, 'lisboa': 95, 'lisbon': 95,
-            
-            # Oriente Médio
-            'dubai': 150, 'abu dhabi': 145,
-            'doha': 140, 'qatar': 140, 'catar': 140,
-            'tel aviv': 160, 'jerusalem': 140,
-            
-            # Brasil
-            'fernando de noronha': 135, 'noronha': 135,
-            'trancoso': 110, 'gramado': 95, 'campos do jordao': 95,
-            'sao paulo': 80, 'sp': 80, 'rio de janeiro': 85, 'rio': 85,
-            'brasilia': 80, 'florianopolis': 85, 'bonito': 90,
-            'salvador': 70, 'recife': 65, 'fortaleza': 65,
-            
-            # Latam/Asia
-            'buenos aires': 55, 'santiago': 70, 'cancun': 110,
-            'bangkok': 55, 'tailandia': 55, 'thailand': 55,
-            'toquio': 145, 'tokyo': 145, 'bali': 50
+        self.SEASONALITY_MATRIX = {
+            'norte_temperado': [0.85, 0.85, 0.95, 1.10, 1.20, 1.40, 1.50, 1.50, 1.30, 1.10, 0.95, 1.30],
+            'sul_tropical':    [1.50, 1.40, 1.10, 1.00, 0.90, 0.90, 1.30, 1.00, 1.05, 1.10, 1.20, 1.50],
+            'inverno_fugitivo':[1.40, 1.40, 1.30, 1.20, 1.00, 0.90, 1.00, 0.85, 0.80, 0.85, 1.10, 1.50],
+            'padrao':          [1.0, 1.0, 1.0, 1.0, 1.0, 1.1, 1.1, 1.1, 1.0, 1.0, 1.0, 1.1]
         }
         
-        self.REGIONAL_FALLBACK = {
-            'oriente medio': 100, 'europa': 120, 'america do norte': 150, 
-            'america do sul': 65, 'brasil': 65, 'asia': 55, 
-            'africa': 50, 'oceania': 140, 'default': 100
+        # --- MAPA MANUAL EXPANDIDO (Para não depender do satélite nas principais) ---
+        self.MANUAL_PROFILE_MAP = {
+            # SUL
+            'brasil': 'sul_tropical', 'brazil': 'sul_tropical', 'maragogi': 'sul_tropical', 
+            'noronha': 'sul_tropical', 'rio': 'sul_tropical', 'sp': 'sul_tropical', 'gramado': 'sul_tropical',
+            'argentina': 'sul_tropical', 'buenos aires': 'sul_tropical', 'santiago': 'sul_tropical',
+            # INVERNO FUGITIVO
+            'miami': 'inverno_fugitivo', 'orlando': 'inverno_fugitivo', 'cancun': 'inverno_fugitivo', 
+            'dubai': 'inverno_fugitivo', 'thailand': 'inverno_fugitivo', 'tailandia': 'inverno_fugitivo',
+            # NORTE (Adicionado as capitais europeias aqui para garantir)
+            'europa': 'norte_temperado', 'usa': 'norte_temperado', 'canada': 'norte_temperado',
+            'madrid': 'norte_temperado', 'barcelona': 'norte_temperado', 'lisboa': 'norte_temperado', 
+            'londres': 'norte_temperado', 'london': 'norte_temperado', 'paris': 'norte_temperado',
+            'roma': 'norte_temperado', 'nova york': 'norte_temperado', 'new york': 'norte_temperado'
         }
 
-    def get_index(self, destination):
-        dest_clean = destination.lower().strip()
-        
-        # 1. Busca Exata (Dicionário Expandido)
-        for city, idx in self.INDICES.items():
-            if city in dest_clean:
-                self.audit.append({"src": "LOCAL", "msg": f"Custo de vida local identificado: {city.title()} (Índice {idx})", "status": "OK"})
-                return idx, "high"
-        
-        # 2. Tentativa Online
-        self.audit.append({"src": "WEB", "msg": "Destino fora da base. Consultando satélite...", "status": "INFO"})
-        region_found, full_address = self.online_locator.identify_region(destination)
-        if region_found and region_found in self.REGIONAL_FALLBACK:
-            idx = self.REGIONAL_FALLBACK[region_found]
-            self.audit.append({"src": "WEB", "msg": f"Localizado via satélite: {region_found.title()} -> Usando média regional", "status": "OK"})
-            return idx, "medium"
+        # --- BANCO DE DADOS COMPLETO ---
+        self.RAW_INDICES = {
+            "madrid": 100, "barcelona": 112, "sevilha": 95, "seville": 95, "valencia": 98,
+            "lisboa": 95, "lisbon": 95, "porto": 88, "faro": 90, "paris": 160, "nice": 135,
+            "londres": 175, "london": 175, "manchester": 135, "edimburgo": 150, "dublin": 155,
+            "amsterda": 155, "amsterdam": 155, "bruxelas": 125, "berlim": 120, "munique": 150,
+            "roma": 135, "rome": 135, "milao": 145, "veneza": 160, "florenca": 140,
+            "zurique": 200, "zurich": 200, "genebra": 195, "viena": 145, "praga": 110,
+            "atenas": 105, "santorini": 140, "istambul": 90, "moscou": 120,
 
-        # 3. Fallback
+            "nova york": 190, "new york": 190, "nyc": 190, "los angeles": 160, "sao francisco": 185,
+            "miami": 155, "orlando": 135, "las vegas": 145, "chicago": 150, "washington": 165,
+            "honolulu": 200, "toronto": 160, "vancouver": 170, "cancun": 120, "tulum": 135,
+            "cidade do mexico": 80, "havana": 75, "punta cana": 125, "buenos aires": 95,
+            "bariloche": 120, "mendoza": 90, "santiago": 120, "san pedro de atacama": 135,
+            "cartagena": 100, "bogota": 80, "cusco": 90, "lima": 85, "montevideo": 120,
+            "punta del este": 145, "ushuaia": 125,
+
+            "dubai": 140, "abu dhabi": 130, "doha": 150, "tel aviv": 175, "jerusalem": 150,
+            "toquio": 150, "tokyo": 150, "osaka": 140, "seul": 140, "pequim": 115, "xangai": 130,
+            "hong kong": 170, "bangkok": 80, "phuket": 105, "chiang mai": 70, "singapura": 160,
+            "bali": 75, "jacarta": 80, "hanoi": 70, "ho chi minh": 75, "maldivas": 185, "male": 185,
+            "nova delhi": 70, "mumbai": 85, "cidade do cabo": 95, "marraquexe": 85, "cairo": 80,
+            "seychelles": 170, "sidney": 160, "sydney": 160, "melbourne": 150, "auckland": 150,
+            "papeete": 175, "bora bora": 180,
+
+            "fernando de noronha": 170, "noronha": 170, "trancoso": 150, "buzios": 140,
+            "jurere": 135, "sao miguel dos milagres": 135, "angra dos reis": 130,
+            "campos do jordao": 130, "gramado": 125, "maragogi": 125, "itacare": 125,
+            "praia do forte": 125, "rio de janeiro": 110, "rio": 110, "sao paulo": 105,
+            "sp": 105, "brasilia": 105, "florianopolis": 105, "recife": 90, "salvador": 90,
+            "fortaleza": 90, "manaus": 85, "foz do iguacu": 80, "ouro preto": 95,
+            "tiradentes": 105, "bonito": 110, "jalapao": 100, "lencois maranhenses": 105,
+            "pipa": 115, "jericoacoara": 110, "capitolio": 95, "porto seguro": 120,
+            "arraial d ajuda": 135, "caraiva": 140, "morro de sao paulo": 130,
+            "ilhabela": 120, "paraty": 115, "petropolis": 115, "visconde de maua": 115,
+            "alter do chao": 95, "chapada dos veadeiros": 95, "pirenopolis": 95,
+            "ubatuba": 110, "maresias": 125, "juquehy": 130, "monte verde": 115,
+            "balneario camboriu": 120, "bombinhas": 120, "canela": 120
+        }
+
+    def _normalize(self, text):
+        return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn').lower().strip()
+
+    def get_index_and_profile(self, destination):
+        # AQUI ESTAVA O PROBLEMA: Faltava limpar o audit anterior
+        self.audit = [] # <--- CORREÇÃO DO FANTASMA
+        
+        dest_clean = self._normalize(destination)
         idx = 100
-        self.audit.append({"src": "LOCAL", "msg": f"Usando média global (Destino não mapeado)", "status": "WARN"})
-        return idx, "low"
+        profile = 'padrao'
+        found_idx = False
+        found_profile = False
 
+        # 1. Busca Índice (Local)
+        for city, val in self.RAW_INDICES.items():
+            if self._normalize(city) in dest_clean:
+                idx = val
+                found_idx = True
+                self.audit.append({"src": "LOCAL", "msg": f"Custo local: {city.title()} (Índice {idx})", "status": "OK"})
+                break
+        
+        # 2. Busca Perfil Climático (Manual - Prioridade)
+        for key, prof in self.MANUAL_PROFILE_MAP.items():
+            if key in dest_clean:
+                profile = prof
+                found_profile = True
+                self.audit.append({"src": "SISTEMA", "msg": f"Perfil Climático (Manual): {prof.upper()}", "status": "OK"})
+                break
+        
+        # 3. Busca Perfil Climático (Web - Fallback)
+        if not found_profile:
+            self.audit.append({"src": "WEB", "msg": "Consultando satélite para clima...", "status": "INFO"})
+            prof, _ = self.online_locator.identify_profile(destination)
+            if prof:
+                profile = prof
+                self.audit.append({"src": "WEB", "msg": f"Perfil Climático (Web): {prof.upper()}", "status": "OK"})
+
+        if not found_idx and not found_profile and 'brasil' in dest_clean:
+             idx = 85
+             profile = 'sul_tropical'
+
+        return idx, profile
+
+# --- 5. PREÇO DE HOTELARIA ---
 class AccommodationProvider:
     def __init__(self):
         self.audit = []
     def estimate_adr(self, price_index, style_pct):
+        self.audit = [] # Limpeza de Segurança
         BASE_HOTEL_USD = 120.0
         city_factor = price_index / 100.0
         style_factor = np.exp(1.6 * (style_pct - 0.45))
-        estimated = BASE_HOTEL_USD * city_factor * style_factor
-        self.audit.append({"src": "HOTEL", "msg": f"Diária média estimada para o seu perfil: U$ {estimated:.0f}", "status": "OK"})
-        return estimated
+        return BASE_HOTEL_USD * city_factor * style_factor
 
-# --- 4. ENGINE PRINCIPAL ---
+# --- 6. MOTOR PRINCIPAL ---
 class CostEngine:
     def __init__(self):
         self.fx = FXProvider()
@@ -170,68 +254,59 @@ class CostEngine:
         self.hotel = AccommodationProvider()
         self.audit_log = []
 
-    def _log(self, provider):
-        self.audit_log.extend(provider.audit)
-        provider.audit = []
-
     def calculate_cost(self, destination, days, travelers, style, currency, vibe="tourist_mix", start_date=None):
         self.audit_log = []
-        style_clean = style.lower() if style.lower() in StyleConfig.SETTINGS else "moderado"
-        vibe_clean = vibe.lower() if vibe.lower() in VibeConfig.MULTIPLIERS else "tourist_mix"
         
+        # 1. Câmbio
         usd_rate = self.fx.get_rate(currency)
-        self._log(self.fx)
+        self.audit_log.extend(self.fx.audit)
         
-        idx, confidence = self.geo.get_index(destination)
-        self._log(self.geo)
+        # 2. Geografia e Clima
+        idx, profile = self.geo.get_index_and_profile(destination)
+        self.audit_log.extend(self.geo.audit)
         
+        # 3. Sazonalidade
         season_factor = 1.0
         if start_date:
-            month = start_date.month
-            if month in [12, 1, 6, 7]:
-                season_factor = 1.30 
-                self.audit_log.append({"src": "DATA", "msg": "Alta Temporada: Preços ajustados em +30%", "status": "INFO"})
-            elif month in [2, 3]:
-                season_factor = 1.15
+            month_idx = start_date.month - 1
+            matrix = self.geo.SEASONALITY_MATRIX.get(profile, self.geo.SEASONALITY_MATRIX['padrao'])
+            season_factor = matrix[month_idx]
+            
+            pct = int((season_factor - 1) * 100)
+            sign = "+" if pct > 0 else ""
+            self.audit_log.append({"src": "DATA", "msg": f"Sazonalidade ({start_date.strftime('%B')}) [{profile}]: {sign}{pct}%", "status": "INFO"})
+
+        # 4. Cálculo
+        style_cfg = StyleConfig.SETTINGS.get(style.lower(), StyleConfig.SETTINGS['moderado'])
+        vibe_mult = VibeConfig.MULTIPLIERS.get(vibe.lower(), VibeConfig.MULTIPLIERS['tourist_mix'])
         
-        style_cfg = StyleConfig.SETTINGS[style_clean]
-        vibe_mult = VibeConfig.MULTIPLIERS[vibe_clean]
-        
-        daily_lifestyle_usd = 0
         breakdown_usd = {}
-        for cat, base_val in BASE_SPEND_USD_ANCHOR.items():
-            val = base_val * (idx / 100.0) * style_cfg['factor'] * vibe_mult[cat]
-            val *= (1 + (season_factor - 1) * 0.4) 
+        daily_life_usd = 0
+        
+        for cat, base in BASE_SPEND_USD_ANCHOR.items():
+            life_season = 1 + (season_factor - 1) * 0.5
+            val = base * (idx / 100.0) * style_cfg['factor'] * vibe_mult[cat] * life_season
             breakdown_usd[cat] = val
-            daily_lifestyle_usd += val
+            daily_life_usd += val
             
         rooms = math.ceil(travelers / 2)
-        adr_usd = self.hotel.estimate_adr(idx, style_cfg['hotel_pct'])
-        self._log(self.hotel)
+        adr_usd = self.hotel.estimate_adr(idx, style_cfg['hotel_pct']) * season_factor
         
-        adr_usd *= season_factor
-        total_hotel_trip_usd = adr_usd * rooms * days
-        total_lifestyle_trip_usd = daily_lifestyle_usd * travelers * days
-        total_trip_usd = total_lifestyle_trip_usd + total_hotel_trip_usd
-        final_total = total_trip_usd * usd_rate
-        daily_avg_person = (final_total / days) / travelers
+        total_hotel = adr_usd * rooms * days
+        total_life = daily_life_usd * travelers * days
+        final = (total_hotel + total_life) * usd_rate
         
-        margin = 0.10 if confidence == "high" else 0.25
-        
-        breakdown_final = {
-            'lodging': total_hotel_trip_usd * usd_rate,
-            'food': breakdown_usd['food'] * travelers * days * usd_rate,
-            'transport': breakdown_usd['transport'] * travelers * days * usd_rate,
-            'activities': breakdown_usd['activities'] * travelers * days * usd_rate + (breakdown_usd['nightlife'] * travelers * days * usd_rate),
-            'misc': breakdown_usd['misc'] * travelers * days * usd_rate
-        }
-        self.audit_log.append({"src": "SISTEMA", "msg": "Cálculo realizado em tempo real.", "status": "DONE"})
-
         return {
-            "total": final_total,
-            "daily_avg": daily_avg_person,
-            "range": [final_total * (1-margin), final_total * (1+margin)],
-            "breakdown": breakdown_final,
+            "total": final,
+            "daily_avg": (final / days) / travelers,
+            "range": [final * 0.85, final * 1.15],
+            "breakdown": {
+                'lodging': total_hotel * usd_rate,
+                'food': breakdown_usd['food'] * travelers * days * usd_rate,
+                'transport': breakdown_usd['transport'] * travelers * days * usd_rate,
+                'activities': (breakdown_usd['activities'] + breakdown_usd['nightlife']) * travelers * days * usd_rate,
+                'misc': breakdown_usd['misc'] * travelers * days * usd_rate
+            },
             "audit": self.audit_log
         }
 
