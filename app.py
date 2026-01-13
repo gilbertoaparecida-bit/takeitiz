@@ -15,41 +15,33 @@ st.set_page_config(
 # --- FUNÇÃO PWA (APP NATIVO) ---
 def setup_pwa():
     # 1. Injeção de Meta Tags para funcionar como App (Tela Cheia)
-    # Nota: Substitua o link do 'href' abaixo pela URL da sua logo quadrada (PNG) hospedada
+    # Esta parte é invisível e faz a mágica por trás dos panos
     meta_tags = """
     <head>
         <meta name="apple-mobile-web-app-title" content="TakeItIz">
         <meta name="application-name" content="TakeItIz">
-        
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        
         <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/201/201623.png">
     </head>
     """
     st.markdown(meta_tags, unsafe_allow_html=True)
 
-    # 2. Instruções de Instalação (Apenas no primeiro acesso da sessão)
-    if 'first_visit' not in st.session_state:
-        st.session_state.first_visit = True
+    # 2. Instruções de Instalação (Discreto e sob demanda)
+    # CORREÇÃO UX: expanded=False para começar recolhido
+    with st.expander("📲 Instalar como Aplicativo (iOS & Android)", expanded=False):
+        col_ios, col_android = st.columns(2)
+        with col_ios:
+            st.markdown("**iPhone (iOS)**")
+            st.caption("1. Clique em **Compartilhar** (quadrado com seta)")
+            st.caption("2. Escolha **'Adicionar à Tela de Início'**")
+        with col_android:
+            st.markdown("**Android**")
+            st.caption("1. Clique nos **3 pontinhos** do navegador")
+            st.caption("2. Escolha **'Adicionar à Tela Inicial'**")
         
-        # Mostra um alerta discreto e elegante
-        with st.expander("📲 Instalar como Aplicativo (iOS & Android)", expanded=True):
-            col_ios, col_android = st.columns(2)
-            with col_ios:
-                st.markdown("**iPhone (iOS)**")
-                st.caption("1. Clique em **Compartilhar** (quadrado com seta)")
-                st.caption("2. Escolha **'Adicionar à Tela de Início'**")
-            with col_android:
-                st.markdown("**Android**")
-                st.caption("1. Clique nos **3 pontinhos** do navegador")
-                st.caption("2. Escolha **'Adicionar à Tela Inicial'**")
-            
-            if st.button("Entendi, vamos viajar! ✈️"):
-                # Ao clicar, o expander fecha e não incomoda mais
-                st.session_state.first_visit = False
-                st.rerun()
+        st.caption("Isso fará o TakeItIz abrir em tela cheia, sem a barra do navegador.")
 
 # Executa a configuração PWA
 setup_pwa()
