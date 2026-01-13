@@ -6,24 +6,53 @@ from datetime import date, timedelta
 
 # --- Configuração da Página ---
 st.set_page_config(
-    page_title="TakeItIz | Planejador de Viagem",
+    page_title="TakeItIz",
     page_icon="🧳",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- CAPA SOCIAL (META TAGS) ---
-def set_social_headers():
+# --- FUNÇÃO PWA (APP NATIVO) ---
+def setup_pwa():
+    # 1. Injeção de Meta Tags para funcionar como App (Tela Cheia)
+    # Nota: Substitua o link do 'href' abaixo pela URL da sua logo quadrada (PNG) hospedada
     meta_tags = """
     <head>
-        <meta property="og:title" content="TakeItIz 🧳 - Quanto custa sua viagem?" />
-        <meta property="og:description" content="Descubra o orçamento real com inteligência de dados." />
-        <meta property="og:image" content="https://cdn-icons-png.flaticon.com/512/201/201623.png" />
+        <meta name="apple-mobile-web-app-title" content="TakeItIz">
+        <meta name="application-name" content="TakeItIz">
+        
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        
+        <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/201/201623.png">
     </head>
     """
     st.markdown(meta_tags, unsafe_allow_html=True)
 
-set_social_headers()
+    # 2. Instruções de Instalação (Apenas no primeiro acesso da sessão)
+    if 'first_visit' not in st.session_state:
+        st.session_state.first_visit = True
+        
+        # Mostra um alerta discreto e elegante
+        with st.expander("📲 Instalar como Aplicativo (iOS & Android)", expanded=True):
+            col_ios, col_android = st.columns(2)
+            with col_ios:
+                st.markdown("**iPhone (iOS)**")
+                st.caption("1. Clique em **Compartilhar** (quadrado com seta)")
+                st.caption("2. Escolha **'Adicionar à Tela de Início'**")
+            with col_android:
+                st.markdown("**Android**")
+                st.caption("1. Clique nos **3 pontinhos** do navegador")
+                st.caption("2. Escolha **'Adicionar à Tela Inicial'**")
+            
+            if st.button("Entendi, vamos viajar! ✈️"):
+                # Ao clicar, o expander fecha e não incomoda mais
+                st.session_state.first_visit = False
+                st.rerun()
+
+# Executa a configuração PWA
+setup_pwa()
 
 # --- CSS ELEGANCE ---
 st.markdown("""
@@ -31,7 +60,7 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    .block-container {padding-top: 1.5rem !important; padding-bottom: 3rem !important;}
+    .block-container {padding-top: 1.0rem !important; padding-bottom: 3rem !important;}
     
     .stButton > button {width: 100%; border-radius: 12px; height: 3.5em; font-weight: bold;}
     
@@ -58,7 +87,6 @@ st.markdown("""
 with st.container():
     st.markdown("## TakeItIz 🧳") 
     st.markdown("**Saiba quanto você vai gastar no destino escolhido.**")
-    # Ajuste solicitado: Aviso sobre passagens
     st.caption("*(não inclui passagens aéreas)*")
     st.write("---")
 
@@ -163,7 +191,7 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                     icon = "✅" if log['status'] == "OK" else "⚠️"
                     st.text(f"{icon} {log['msg']}")
 
-            # --- AMENITIES (NOVO GRID OTIMIZADO) ---
+            # --- AMENITIES (GRID OTIMIZADO) ---
             st.write("---")
             st.subheader(f"✨ Curadoria: {dest}")
             
@@ -173,7 +201,7 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 style=style.lower(), start_date=start_date
             )
             
-            # Linha 1: Logística (Passagens + Hotel)
+            # Linha 1: Logística
             row1_col1, row1_col2 = st.columns(2)
             with row1_col1:
                 st.markdown(f"""
@@ -188,7 +216,7 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                     <span class="amenity-text">{links['labels']['hotel_label']}</span>
                 </a>""", unsafe_allow_html=True)
             
-            # Linha 2: Experiência (Comida + Eventos)
+            # Linha 2: Experiência
             row2_col1, row2_col2 = st.columns(2)
             with row2_col1:
                 st.markdown(f"""
