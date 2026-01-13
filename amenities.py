@@ -7,6 +7,7 @@ class AmenitiesGenerator:
     """
     
     def __init__(self):
+        # Mapeamento de Vibe -> Palavras-chave de busca
         self.VIBE_MAP = {
             'tourist_mix': {
                 'food': "melhores restaurantes tradicionais",
@@ -72,7 +73,7 @@ class AmenitiesGenerator:
         style_mod = self.STYLE_MODIFIERS[style_key]
         hotel_mod = self.HOTEL_MODIFIERS.get(style_key, "melhores hotéis e pousadas")
         
-        # Data Formatada
+        # Data Formatada para melhorar busca de eventos
         date_str = ""
         if start_date:
             meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
@@ -80,7 +81,7 @@ class AmenitiesGenerator:
             mes_nome = meses[start_date.month - 1]
             date_str = f"{mes_nome} {start_date.year}"
         
-        # 1. VOOS (Novo) - O Google detecta a origem do usuário automaticamente
+        # 1. VOOS
         q_flight = f"passagens aéreas para {destination} promoções"
         url_flight = f"https://www.google.com/search?q={self._clean_url(q_flight)}"
 
@@ -105,7 +106,7 @@ class AmenitiesGenerator:
         url_surprise = f"https://www.google.com/search?q={self._clean_url(q_surprise)}"
         
         return {
-            "flight": url_flight, # Novo
+            "flight": url_flight,
             "hotel": url_hotel,
             "food": url_food,
             "event": url_event,
@@ -115,7 +116,7 @@ class AmenitiesGenerator:
                 "flight_label": "Passagens",
                 "hotel_label": "Hospedagem",
                 "food_label": "Gastronomia", 
-                "event_label": "Agenda Cultural",
+                "event_label": "Agenda",
                 "surprise_label": "Surpreenda-se"
             }
         }
