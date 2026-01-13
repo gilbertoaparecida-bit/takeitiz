@@ -9,12 +9,10 @@ from datetime import datetime
 from geopy.geocoders import Nominatim
 
 # --- CONFIGURAÇÃO ---
-# Cache global para APIs de geolocalização (dura 1 hora)
 requests_cache.install_cache('takeitiz_cache', expire_after=3600)
 logging.basicConfig(level=logging.INFO)
 
 # --- 1. A ÂNCORA (GLOBAL BASELINE) ---
-# Base: Madrid (100)
 BASE_SPEND_USD_ANCHOR = {
     'food': 45.0, 'transport': 12.0, 'activities': 25.0, 'nightlife': 0.0, 'misc': 8.0
 }
@@ -38,14 +36,12 @@ class StyleConfig:
         'luxo':      {'factor': 3.20, 'hotel_pct': 0.95},
     }
 
-# --- 3. PROVEDOR DE CÂMBIO (COM BACKUP ROBUSTO) ---
+# --- 3. PROVEDOR DE CÂMBIO ---
 class FXProvider:
     def __init__(self):
         self.audit = []
         
     def _get_backup_rate(self, target_currency):
-        """Consulta a AwesomeAPI (BC/Fechamento) ignorando cache."""
-        # IMPORTANTE: Desabilita cache para garantir tentativa limpa
         with requests_cache.disabled():
             try:
                 pair_map = {"BRL": "USD-BRL", "EUR": "EUR-USD"}
@@ -53,9 +49,8 @@ class FXProvider:
                 if not pair: return None
                 
                 url = f"https://economia.awesomeapi.com.br/last/{pair}"
-                # Timeout aumentado para 5s para conexões lentas
                 response = requests.get(url, timeout=5)
-                response.raise_for_status() # Aciona erro se for 404/500
+                response.raise_for_status()
                 
                 data = response.json()
                 key = pair.replace("-", "")
@@ -65,16 +60,13 @@ class FXProvider:
                 elif target_currency == "EUR":
                     return 1 / float(data[key]['ask'])
             except Exception as e:
-                # Loga o erro real no audit para sabermos O QUE aconteceu
-                self.audit.append({"src": "DEBUG", "msg": f"Erro no Backup: {str(e)}", "status": "WARN"})
+                self.audit.append({"src": "DEBUG", "msg": f"Erro Backup: {str(e)}", "status": "WARN"})
                 return None
 
     def get_rate(self, target_currency):
-        self.audit = []
+        self.audit = [] # LIMPEZA DE MEMÓRIA (Vital)
         if target_currency == "USD": return 1.0
         
-        # 1. Tenta Yahoo Finance (Tempo Real)
-        # Usamos cache aqui para não bombardear o Yahoo
         try:
             import yfinance as yf
             if target_currency == "BRL":
@@ -82,7 +74,7 @@ class FXProvider:
                 hist = ticker.history(period="1d")
                 if not hist.empty:
                     rate = hist['Close'].iloc[-1]
-                    final = rate * 1.045 # Spread
+                    final = rate * 1.045
                     self.audit.append({"src": "CÂMBIO", "msg": f"Cotação Yahoo (Live): R$ {final:.2f}", "status": "OK"})
                     return final
             elif target_currency == "EUR":
@@ -94,14 +86,12 @@ class FXProvider:
                     return rate
         except: pass
 
-        # 2. Tenta Backup (AwesomeAPI - Sem Cache)
         backup = self._get_backup_rate(target_currency)
         if backup:
             final = backup * 1.045 if target_currency == "BRL" else backup
             self.audit.append({"src": "CÂMBIO", "msg": f"⚠️ Yahoo instável. Usando Backup (BC): {final:.2f}", "status": "INFO"})
             return final
 
-        # 3. Fallback Fixo (Emergência Absoluta)
         fallback = {"BRL": 6.15, "EUR": 0.92}
         val = fallback.get(target_currency, 1.0)
         self.audit.append({"src": "CÂMBIO", "msg": f"⛔ APIs Offline. Usando taxa fixa: {val}", "status": "WARN"})
@@ -110,7 +100,7 @@ class FXProvider:
 # --- 4. GEOLOCALIZAÇÃO E PERFIL CLIMÁTICO ---
 class OnlineGeoLocator:
     def __init__(self):
-        self.geolocator = Nominatim(user_agent="takeitiz_app_v8_failsafe")
+        self.geolocator = Nominatim(user_agent="takeitiz_app_v9_clean")
         self.COUNTRY_PROFILE_MAP = {
             'br': 'sul_tropical', 'ar': 'sul_tropical', 'cl': 'sul_tropical', 'uy': 'sul_tropical',
             'au': 'sul_tropical', 'za': 'sul_tropical', 'nz': 'sul_tropical',
@@ -138,7 +128,6 @@ class GeoCostProvider:
         self.audit = []
         self.online_locator = OnlineGeoLocator()
         
-        # --- MATRIZ DE CALOR (Sazonalidade) ---
         self.SEASONALITY_MATRIX = {
             'norte_temperado': [0.85, 0.85, 0.95, 1.10, 1.20, 1.40, 1.50, 1.50, 1.30, 1.10, 0.95, 1.30],
             'sul_tropical':    [1.50, 1.40, 1.10, 1.00, 0.90, 0.90, 1.30, 1.00, 1.05, 1.10, 1.20, 1.50],
@@ -146,19 +135,24 @@ class GeoCostProvider:
             'padrao':          [1.0, 1.0, 1.0, 1.0, 1.0, 1.1, 1.1, 1.1, 1.0, 1.0, 1.0, 1.1]
         }
         
-        # --- MAPA MANUAL DE PERFIS (Correção de Bug Maragogi) ---
+        # --- MAPA MANUAL EXPANDIDO (Para não depender do satélite nas principais) ---
         self.MANUAL_PROFILE_MAP = {
+            # SUL
             'brasil': 'sul_tropical', 'brazil': 'sul_tropical', 'maragogi': 'sul_tropical', 
             'noronha': 'sul_tropical', 'rio': 'sul_tropical', 'sp': 'sul_tropical', 'gramado': 'sul_tropical',
-            'argentina': 'sul_tropical', 'chile': 'sul_tropical', 'australia': 'sul_tropical',
+            'argentina': 'sul_tropical', 'buenos aires': 'sul_tropical', 'santiago': 'sul_tropical',
+            # INVERNO FUGITIVO
             'miami': 'inverno_fugitivo', 'orlando': 'inverno_fugitivo', 'cancun': 'inverno_fugitivo', 
             'dubai': 'inverno_fugitivo', 'thailand': 'inverno_fugitivo', 'tailandia': 'inverno_fugitivo',
-            'europa': 'norte_temperado', 'usa': 'norte_temperado', 'canada': 'norte_temperado'
+            # NORTE (Adicionado as capitais europeias aqui para garantir)
+            'europa': 'norte_temperado', 'usa': 'norte_temperado', 'canada': 'norte_temperado',
+            'madrid': 'norte_temperado', 'barcelona': 'norte_temperado', 'lisboa': 'norte_temperado', 
+            'londres': 'norte_temperado', 'london': 'norte_temperado', 'paris': 'norte_temperado',
+            'roma': 'norte_temperado', 'nova york': 'norte_temperado', 'new york': 'norte_temperado'
         }
 
-        # --- BANCO DE DADOS UNIFICADO ---
+        # --- BANCO DE DADOS COMPLETO ---
         self.RAW_INDICES = {
-            # EUROPA
             "madrid": 100, "barcelona": 112, "sevilha": 95, "seville": 95, "valencia": 98,
             "lisboa": 95, "lisbon": 95, "porto": 88, "faro": 90, "paris": 160, "nice": 135,
             "londres": 175, "london": 175, "manchester": 135, "edimburgo": 150, "dublin": 155,
@@ -167,7 +161,6 @@ class GeoCostProvider:
             "zurique": 200, "zurich": 200, "genebra": 195, "viena": 145, "praga": 110,
             "atenas": 105, "santorini": 140, "istambul": 90, "moscou": 120,
 
-            # AMERICAS
             "nova york": 190, "new york": 190, "nyc": 190, "los angeles": 160, "sao francisco": 185,
             "miami": 155, "orlando": 135, "las vegas": 145, "chicago": 150, "washington": 165,
             "honolulu": 200, "toronto": 160, "vancouver": 170, "cancun": 120, "tulum": 135,
@@ -176,7 +169,6 @@ class GeoCostProvider:
             "cartagena": 100, "bogota": 80, "cusco": 90, "lima": 85, "montevideo": 120,
             "punta del este": 145, "ushuaia": 125,
 
-            # ASIA / AFRICA / OCEANIA
             "dubai": 140, "abu dhabi": 130, "doha": 150, "tel aviv": 175, "jerusalem": 150,
             "toquio": 150, "tokyo": 150, "osaka": 140, "seul": 140, "pequim": 115, "xangai": 130,
             "hong kong": 170, "bangkok": 80, "phuket": 105, "chiang mai": 70, "singapura": 160,
@@ -185,7 +177,6 @@ class GeoCostProvider:
             "seychelles": 170, "sidney": 160, "sydney": 160, "melbourne": 150, "auckland": 150,
             "papeete": 175, "bora bora": 180,
 
-            # BRASIL (SELEÇÃO)
             "fernando de noronha": 170, "noronha": 170, "trancoso": 150, "buzios": 140,
             "jurere": 135, "sao miguel dos milagres": 135, "angra dos reis": 130,
             "campos do jordao": 130, "gramado": 125, "maragogi": 125, "itacare": 125,
@@ -205,6 +196,9 @@ class GeoCostProvider:
         return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn').lower().strip()
 
     def get_index_and_profile(self, destination):
+        # AQUI ESTAVA O PROBLEMA: Faltava limpar o audit anterior
+        self.audit = [] # <--- CORREÇÃO DO FANTASMA
+        
         dest_clean = self._normalize(destination)
         idx = 100
         profile = 'padrao'
@@ -235,7 +229,6 @@ class GeoCostProvider:
                 profile = prof
                 self.audit.append({"src": "WEB", "msg": f"Perfil Climático (Web): {prof.upper()}", "status": "OK"})
 
-        # Fallback Final Brasil
         if not found_idx and not found_profile and 'brasil' in dest_clean:
              idx = 85
              profile = 'sul_tropical'
@@ -247,6 +240,7 @@ class AccommodationProvider:
     def __init__(self):
         self.audit = []
     def estimate_adr(self, price_index, style_pct):
+        self.audit = [] # Limpeza de Segurança
         BASE_HOTEL_USD = 120.0
         city_factor = price_index / 100.0
         style_factor = np.exp(1.6 * (style_pct - 0.45))
@@ -288,6 +282,7 @@ class CostEngine:
         
         breakdown_usd = {}
         daily_life_usd = 0
+        
         for cat, base in BASE_SPEND_USD_ANCHOR.items():
             life_season = 1 + (season_factor - 1) * 0.5
             val = base * (idx / 100.0) * style_cfg['factor'] * vibe_mult[cat] * life_season
