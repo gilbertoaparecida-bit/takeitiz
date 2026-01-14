@@ -14,6 +14,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- CONFIGURAÇÕES DO DOMÍNIO (NETLIFY) ---
+# Aqui conectamos o App à sua Landing Page para puxar os assets
+DOMAIN_URL = "https://takeitiz.com.br"
+ICON_URL = f"{DOMAIN_URL}/icon.png"
+
 # --- FUNÇÕES UTILITÁRIAS ---
 def format_brl(value, currency_symbol):
     """Transforma 1200.50 em 1.200,50"""
@@ -23,27 +28,28 @@ def format_brl(value, currency_symbol):
 
 # --- FUNÇÃO PWA (APP NATIVO) ---
 def setup_pwa():
-    APP_ICON_URL = "https://cdn-icons-png.flaticon.com/512/201/201623.png"
-    
+    # Manifesto aponta para o ícone hospedado na Netlify
     manifest = {
         "name": "TakeItIz",
         "short_name": "TakeItIz",
         "start_url": "/",
         "display": "standalone",
         "background_color": "#FFFFFF",
-        "theme_color": "#FFFFFF",
-        "icons": [{"src": APP_ICON_URL, "sizes": "192x192", "type": "image/png"}]
+        "theme_color": "#1E88E5",
+        "icons": [{"src": ICON_URL, "sizes": "192x192", "type": "image/png"}]
     }
     manifest_json = json.dumps(manifest)
     b64_manifest = base64.b64encode(manifest_json.encode()).decode()
     data_url = f"data:application/manifest+json;base64,{b64_manifest}"
 
+    # Meta tags para forçar ícone no iOS e Android
     meta_tags = f"""
     <head>
         <meta name="apple-mobile-web-app-title" content="TakeItIz">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="default">
-        <link rel="apple-touch-icon" href="{APP_ICON_URL}">
+        <link rel="apple-touch-icon" href="{ICON_URL}">
+        <link rel="icon" type="image/png" href="{ICON_URL}">
         <link rel="manifest" href="{data_url}">
         <style>
             @media all and (display-mode: standalone) {{
@@ -54,12 +60,13 @@ def setup_pwa():
     """
     st.markdown(meta_tags, unsafe_allow_html=True)
 
-    st.markdown("""
+    # Banner de Instalação (Só aparece se não estiver instalado)
+    st.markdown(f"""
     <div id="install-banner" style="border: 1px solid #f0f2f6; border-radius: 10px; padding: 10px; margin-bottom: 20px; background-color: white;">
         <details>
-            <summary style="cursor: pointer; font-weight: bold; color: #31333F;">📲 Instalar App (Tela Cheia)</summary>
+            <summary style="cursor: pointer; font-weight: bold; color: #31333F;">📲 Instalar App</summary>
             <div style="margin-top: 10px; font-size: 14px; color: #555;">
-                <p>O app funcionará melhor se adicionado à tela de início.</p>
+                <p>Para melhor experiência, adicione à tela de início:</p>
                 <div style="display: flex; gap: 20px;">
                     <div><strong>iPhone:</strong> Compartilhar > Tela de Início</div>
                     <div><strong>Android:</strong> Menu > Instalar App</div>
@@ -71,7 +78,7 @@ def setup_pwa():
 
 setup_pwa()
 
-# --- CSS REFINADO (GRID SYSTEM REAL & TYPOGRAPHY) ---
+# --- CSS REFINADO ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -92,7 +99,7 @@ st.markdown("""
         padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
     
-    /* GRID REAL PARA AMENITIES (Força 2 colunas no mobile) */
+    /* GRID REAL PARA AMENITIES */
     .amenity-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -116,7 +123,7 @@ st.markdown("""
     .amenity-icon { font-size: 24px; margin-bottom: 4px; }
     .amenity-text { font-size: 12px; line-height: 1.1; font-weight: 500; }
     
-    /* Tipografia de Preço */
+    /* Tipografia */
     .price-hero {
         font-family: 'Roboto', sans-serif; font-size: 42px; font-weight: 800;
         color: #1E88E5; text-align: center; line-height: 1.0; margin-bottom: 5px;
@@ -124,13 +131,31 @@ st.markdown("""
     .price-sub {
         font-size: 14px; color: #757575; text-align: center; margin-bottom: 20px;
     }
-    
-    /* Titulo da Marca (Aumentado) */
     .brand-title {
         font-size: 32px; font-weight: 900; color: #31333F; letter-spacing: -1px; margin-bottom: 0px;
     }
     </style>
 """, unsafe_allow_html=True)
+
+# --- SIDEBAR (Menu de Compartilhamento) ---
+with st.sidebar:
+    st.image(ICON_URL, width=80)
+    st.markdown("### 🧳 TakeItIz")
+    st.write("Gostou do App? Compartilhe com amigos!")
+    
+    # Link WhatsApp
+    msg_encoded = "Olha%20esse%20app%20que%20calcula%20viagem%20sozinho!%20Muito%20bom:%20https://takeitiz.com.br"
+    st.markdown(f"""
+    <a href="https://wa.me/?text={msg_encoded}" target="_blank" style="text-decoration:none;">
+        <div style="background-color:#25D366; color:white; padding:10px; border-radius:8px; text-align:center; margin-bottom:10px; font-weight:bold;">
+            📲 Enviar no WhatsApp
+        </div>
+    </a>
+    """, unsafe_allow_html=True)
+    
+    st.text_input("Link para copiar:", DOMAIN_URL, disabled=True)
+    st.divider()
+    st.caption(f"Versão 2.1 • {date.today().year}")
 
 # --- Cabeçalho ---
 with st.container():
@@ -145,9 +170,8 @@ with st.container():
 # --- Inputs ---
 dest = st.text_input("Para onde vamos?", placeholder="Ex: Miami, Paris, Cancún...")
 
-# Datas
+# Datas (Correção UX: value=[])
 today = date.today()
-# CORREÇÃO UX: Iniciar com value=[] força o modo de seleção limpo
 travel_dates = st.date_input("Qual o período?", value=[], min_value=today, format="DD/MM/YYYY")
 
 days_calc = 0
@@ -197,23 +221,22 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 vibe=vibe_key_map[vibe], start_date=start_date
             )
             costs = result
-            
             msg_placeholder.success("✅ Cálculo concluído. Role a página. 👇")
             
-        # --- Resultado (NOVO LAYOUT) ---
+        # --- Resultado ---
         st.write("")
         with st.container():
             st.markdown(f"### 🎫 Orçamento: {dest}")
             st.caption(f"{days_calc} dias • {travelers} pessoas • {style}")
             
-            # --- 1. PREÇO HERO (Por Pessoa/Dia) ---
+            # --- PREÇO HERO ---
             daily_fmt = format_brl(costs['daily_avg'], currency)
             total_fmt = format_brl(costs['total'], currency)
             
             st.markdown(f'<div class="price-hero">{daily_fmt}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="price-sub">por pessoa / dia<br>Total Estimado: {total_fmt}</div>', unsafe_allow_html=True)
             
-            # --- SHARE TICKET ---
+            # --- SHARE TICKET (Correção iOS: Imagem na tela) ---
             ticket_gen = share.TicketGenerator()
             ticket_img = ticket_gen.create_ticket(
                 destination=dest, total_value=costs['total'], 
@@ -221,20 +244,19 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 vibe=vibe_key_map[vibe], currency=currency
             )
             
-            st.download_button(
-                label="📸 Baixar Ticket (Story)",
-                data=ticket_img,
-                file_name=f"takeitiz_{dest}.png",
-                mime="image/png",
-                use_container_width=True
-            )
-
+            st.write("---")
+            st.markdown("**📸 Salvar Resumo (Story):**")
+            
+            # 1. Mostra a imagem na tela (Seguro para PWA)
+            st.image(ticket_img, use_container_width=True)
+            
+            # 2. Instrução clara para iOS/Android
+            st.info("👆 Pressione e segure a imagem acima para salvar no seu Álbum de Fotos.")
+            
             # --- BREAKDOWN ---
             with st.expander("📊 Detalhes do Custo"):
                 bk = costs['breakdown']
                 c1, c2, c3 = st.columns(3)
-                
-                # Formatação simples para os cards pequenos
                 h_val = f"{int(bk['lodging']):,}".replace(',', '.')
                 f_val = f"{int(bk['food']):,}".replace(',', '.')
                 l_val = f"{int(bk['transport'] + bk['activities'] + bk['misc']):,}".replace(',', '.')
@@ -244,12 +266,12 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 c3.metric("🚌 Lazer", l_val)
                 
                 st.divider()
-                st.caption("ℹ️ Memória de Cálculo (Auditoria):")
+                st.caption("ℹ️ Memória de Cálculo:")
                 for log in result['audit']:
                     icon = "✅" if log['status'] == "OK" else "⚠️"
                     st.text(f"{icon} {log['msg']}")
 
-            # --- AMENITIES (GRID LAYOUT HTML PURO) ---
+            # --- AMENITIES ---
             st.write("---")
             st.subheader(f"✨ Curadoria: {dest}")
             
@@ -259,7 +281,6 @@ if st.button("💰 Calcular Orçamento", type="primary"):
                 style=style.lower(), start_date=start_date
             )
             
-            # Grid Manual em HTML (Garante 2 colunas no Mobile)
             html_grid = f"""
             <div class="amenity-grid">
                 <a href="{links["flight"]}" target="_blank" class="amenity-btn">
