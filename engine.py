@@ -14,19 +14,26 @@ requests_cache.install_cache('takeitiz_cache', expire_after=3600)
 logging.basicConfig(level=logging.INFO)
 
 # --- 1. A ÂNCORA (GLOBAL BASELINE) ---
+# CORREÇÃO: Nightlife agora tem valor base ($15).
+# Quem não curte festa terá esse valor zerado pelos multiplicadores de Vibe.
 BASE_SPEND_USD_ANCHOR = {
-    'food': 45.0, 'transport': 12.0, 'activities': 25.0, 'nightlife': 0.0, 'misc': 8.0
+    'food': 45.0, 
+    'transport': 12.0, 
+    'activities': 25.0, 
+    'nightlife': 15.0, # Antes era 0.0 (Bug corrigido)
+    'misc': 8.0
 }
 
 # --- 2. CONFIGURAÇÕES ---
 class VibeConfig:
+    # CORREÇÃO: Ajuste fino para zerar nightlife em perfis calmos e turbinar em festa
     MULTIPLIERS = {
-        'tourist_mix': {'food': 1.0, 'transport': 1.0, 'activities': 1.0, 'nightlife': 0.5, 'misc': 1.0},
-        'cultura':     {'food': 1.0, 'transport': 1.1, 'activities': 1.8, 'nightlife': 0.2, 'misc': 1.0},
+        'tourist_mix': {'food': 1.0, 'transport': 1.0, 'activities': 1.0, 'nightlife': 0.5, 'misc': 1.0}, # $7.50 de festa
+        'cultura':     {'food': 1.0, 'transport': 1.1, 'activities': 1.8, 'nightlife': 0.2, 'misc': 1.0}, # $3.00 de festa
         'gastro':      {'food': 1.8, 'transport': 0.8, 'activities': 0.5, 'nightlife': 0.6, 'misc': 1.2},
-        'natureza':    {'food': 0.9, 'transport': 1.5, 'activities': 1.6, 'nightlife': 0.1, 'misc': 1.3},
-        'festa':       {'food': 0.8, 'transport': 1.5, 'activities': 0.5, 'nightlife': 3.0, 'misc': 1.2},
-        'familiar':    {'food': 1.2, 'transport': 1.4, 'activities': 1.1, 'nightlife': 0.0, 'misc': 1.5},
+        'natureza':    {'food': 0.9, 'transport': 1.5, 'activities': 1.6, 'nightlife': 0.0, 'misc': 1.3}, # $0.00 de festa
+        'festa':       {'food': 0.8, 'transport': 1.5, 'activities': 0.5, 'nightlife': 4.0, 'misc': 1.2}, # $60.00 de festa
+        'familiar':    {'food': 1.2, 'transport': 1.4, 'activities': 1.1, 'nightlife': 0.0, 'misc': 1.5}, # $0.00 de festa
     }
 
 class StyleConfig:
@@ -43,6 +50,7 @@ class FXProvider:
         self.audit = []
         
     def _get_backup_rate(self, target_currency):
+        # PLANO B: AwesomeAPI
         with requests_cache.disabled():
             try:
                 pair_map = {"BRL": "USD-BRL", "EUR": "EUR-USD"}
@@ -57,6 +65,7 @@ class FXProvider:
                 key = pair.replace("-", "")
                 
                 if target_currency == "BRL":
+                    # Pega o 'Ask' (Venda) do Dólar Comercial
                     return float(data[key]['ask'])
                 elif target_currency == "EUR":
                     return 1 / float(data[key]['ask'])
@@ -68,6 +77,10 @@ class FXProvider:
         self.audit = [] 
         if target_currency == "USD": return 1.0
         
+        # DEFINIÇÃO DO SPREAD TURISMO
+        TOURIST_SPREAD = 1.045 
+        
+        # PLANO A: Yahoo Finance
         try:
             import yfinance as yf
             if target_currency == "BRL":
@@ -75,8 +88,8 @@ class FXProvider:
                 hist = ticker.history(period="1d")
                 if not hist.empty:
                     rate = hist['Close'].iloc[-1]
-                    final = rate * 1.045
-                    self.audit.append({"src": "CÂMBIO", "msg": f"Cotação Yahoo (Live): R$ {final:.2f}", "status": "OK"})
+                    final = rate * TOURIST_SPREAD
+                    self.audit.append({"src": "CÂMBIO", "msg": f"Cotação Yahoo (Live + Spread): R$ {final:.2f}", "status": "OK"})
                     return final
             elif target_currency == "EUR":
                 ticker = yf.Ticker("EURUSD=X")
@@ -87,21 +100,24 @@ class FXProvider:
                     return rate
         except: pass
 
+        # PLANO B: AwesomeAPI (Backup)
         backup = self._get_backup_rate(target_currency)
         if backup:
-            final = backup * 1.045 if target_currency == "BRL" else backup
-            self.audit.append({"src": "CÂMBIO", "msg": f"⚠️ Yahoo instável. Usando Backup (BC): {final:.2f}", "status": "INFO"})
+            final = backup * TOURIST_SPREAD if target_currency == "BRL" else backup
+            self.audit.append({"src": "CÂMBIO", "msg": f"⚠️ Yahoo instável. Usando Backup (AwesomeAPI): {final:.2f}", "status": "INFO"})
             return final
 
-        fallback = {"BRL": 6.15, "EUR": 0.92}
+        # PLANO C: Fallback Fixo (Segurança)
+        # Valor ajustado para 5.90 para evitar distorção excessiva
+        fallback = {"BRL": 5.90, "EUR": 0.92}
         val = fallback.get(target_currency, 1.0)
-        self.audit.append({"src": "CÂMBIO", "msg": f"⛔ APIs Offline. Usando taxa fixa: {val}", "status": "WARN"})
+        self.audit.append({"src": "CÂMBIO", "msg": f"⛔ APIs Offline. Usando taxa fixa de segurança: {val}", "status": "WARN"})
         return val
 
 # --- 4. GEOLOCALIZAÇÃO E PERFIL CLIMÁTICO ---
 class OnlineGeoLocator:
     def __init__(self):
-        self.geolocator = Nominatim(user_agent="takeitiz_app_v9_clean")
+        self.geolocator = Nominatim(user_agent="takeitiz_app_v10_audit")
         self.COUNTRY_PROFILE_MAP = {
             'br': 'sul_tropical', 'ar': 'sul_tropical', 'cl': 'sul_tropical', 'uy': 'sul_tropical',
             'au': 'sul_tropical', 'za': 'sul_tropical', 'nz': 'sul_tropical',
@@ -129,25 +145,11 @@ class GeoCostProvider:
         self.audit = []
         self.online_locator = OnlineGeoLocator()
         
-        # MATRIZ DE SAZONALIDADE INTELIGENTE (Meses 0 a 11 / Jan a Dez)
-        # Lógica: Base 1.0 = Preço Padrão de Alta Temporada.
-        # Valores < 1.0 = Descontos de Baixa/Média Temporada.
-        # Valores > 1.0 = Apenas leve ágio para Pico Extremo.
-        
         self.SEASONALITY_MATRIX = {
-            # EUA/Europa: Baixa no inverno (Jan-Mar), Média na Primavera/Outono, Alta no Verão
             'norte_temperado': [0.80, 0.80, 0.90, 0.95, 1.00, 1.10, 1.15, 1.15, 1.00, 0.95, 0.85, 1.00],
-            
-            # Brasil Praia/Verão: Alta no verão, Baixa no outono, Repique em Julho
             'sul_tropical':    [1.10, 1.05, 0.90, 0.85, 0.80, 0.80, 1.00, 0.85, 0.90, 0.95, 1.00, 1.10],
-            
-            # Caribe/Nordeste Top: Foge do inverno do norte. Alta no começo do ano.
             'inverno_fugitivo':[1.10, 1.10, 1.05, 0.95, 0.85, 0.80, 0.90, 0.80, 0.75, 0.85, 0.95, 1.15],
-            
-            # Serras (Gramado/Bariloche): Baixa no verão, Graduação no Outono, Pico no Inverno
             'sul_frio':        [0.80, 0.75, 0.80, 0.90, 0.95, 1.05, 1.15, 1.00, 0.90, 0.85, 1.00, 1.05],
-            
-            # Padrão Mundial (Sem sazonalidade agressiva)
             'padrao':          [1.0, 1.0, 1.0, 1.0, 1.0, 1.05, 1.05, 1.05, 1.0, 1.0, 1.0, 1.05]
         }
         
@@ -158,14 +160,13 @@ class GeoCostProvider:
         self.audit = [] 
         dest_clean = self._normalize(destination)
         
-        # 1. Busca Exata no Database (Otimizado)
-        # Tenta match exato ou "contém"
+        # 1. Busca Exata no Database
         for city_key, data in database.CITIES.items():
             if self._normalize(city_key) == dest_clean or (len(city_key) > 4 and self._normalize(city_key) in dest_clean):
                 self.audit.append({"src": "DATABASE", "msg": f"Dados locais encontrados: {city_key.title()}", "status": "OK"})
                 return data['idx'], data['profile']
 
-        # 2. Busca por Inferência (Fallback Rápido)
+        # 2. Busca por Inferência
         if "brasil" in dest_clean or "brazil" in dest_clean or any(x in dest_clean for x in [" sp", " rj", " mg", " rs", " ba", " sc"]):
              self.audit.append({"src": "SISTEMA", "msg": "Cidade BR não mapeada. Usando média nacional.", "status": "INFO"})
              return database.DEFAULTS['BR']['idx'], database.DEFAULTS['BR']['profile']
@@ -173,11 +174,11 @@ class GeoCostProvider:
         if "usa" in dest_clean or "estados unidos" in dest_clean:
             return database.DEFAULTS['US']['idx'], database.DEFAULTS['US']['profile']
 
-        # 3. Busca por Satélite (Fallback Lento)
+        # 3. Busca por Satélite
         self.audit.append({"src": "WEB", "msg": "Consultando satélite para local desconhecido...", "status": "INFO"})
         prof, address = self.online_locator.identify_profile(destination)
         
-        idx = 100 # Padrão Madrid
+        idx = 100 
         if prof:
             self.audit.append({"src": "WEB", "msg": f"Localizado: {address[:30]}...", "status": "OK"})
             if prof == 'sul_tropical': idx = 95
@@ -224,7 +225,6 @@ class CostEngine:
             matrix = self.geo.SEASONALITY_MATRIX.get(profile, self.geo.SEASONALITY_MATRIX['padrao'])
             season_factor = matrix[month_idx]
             
-            # Cálculo de Porcentagem para Log
             pct = int((season_factor - 1) * 100)
             sign = "+" if pct > 0 else ""
             msg_sazonal = "Média Temporada"
@@ -241,14 +241,12 @@ class CostEngine:
         daily_life_usd = 0
         
         for cat, base in BASE_SPEND_USD_ANCHOR.items():
-            # A sazonalidade afeta menos a comida/lazer do que o hotel (peso 0.5)
             life_season = 1 + (season_factor - 1) * 0.5
             val = base * (idx / 100.0) * style_cfg['factor'] * vibe_mult[cat] * life_season
             breakdown_usd[cat] = val
             daily_life_usd += val
             
         rooms = math.ceil(travelers / 2)
-        # Hotel absorve a sazonalidade cheia (peso 1.0)
         adr_usd = self.hotel.estimate_adr(idx, style_cfg['hotel_pct']) * season_factor
         
         total_hotel = adr_usd * rooms * days
