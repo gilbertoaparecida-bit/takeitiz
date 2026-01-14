@@ -5,7 +5,6 @@ import share
 from datetime import date, timedelta
 import base64
 import json
-import io  # <--- IMPORTANTE: Adicionado para corrigir o download
 
 # --- Configuração da Página ---
 st.set_page_config(
@@ -36,17 +35,21 @@ def setup_pwa():
 
 setup_pwa()
 
-# --- CSS REFINADO (TENTATIVA DE REMOVER FOOTER) ---
+# --- CSS REFINADO (REMOCÃO TOTAL DE RODAPÉS) ---
 st.markdown("""
     <style>
-    /* Ocultar elementos nativos do Streamlit */
+    /* Ocultar Menu Hambúrguer e Rodapés */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden; display: none !important;}
     
-    /* Tenta ocultar a barra inferior do modo Embed */
-    .stApp > footer {display: none !important;}
+    /* Ocultar Viewer Badge (Fullscreen Link) */
+    .viewerBadge_container__1QSob {display: none !important;}
     div[data-testid="stDecoration"] {display: none;}
+    a[href*="streamlit.app"] {display: none !important;}
+    
+    /* Ajuste de Padding */
+    .block-container {padding-top: 1rem !important; padding-bottom: 3rem !important;}
     
     /* Botões */
     .stButton > button {
@@ -128,21 +131,16 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             st.markdown(f'<div class="price-hero">{format_brl(res["daily_avg"], currency)}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="price-sub">por pessoa / dia<br>Total: {format_brl(res["total"], currency)}</div>', unsafe_allow_html=True)
 
-            # --- TICKET DOWNLOAD (CORRIGIDO) ---
+            # --- TICKET DOWNLOAD (SIMPLIFICADO) ---
             st.markdown("### 📸 Salvar Resumo")
             
-            # 1. Gera a imagem (Objeto PIL)
-            ticket_img = share.TicketGenerator().create_ticket(dest, res['total'], res['daily_avg'], days_calc, vibe_map[vibe], currency)
+            # 1. Gera a imagem (Já vem em bytes do share.py)
+            ticket_data = share.TicketGenerator().create_ticket(dest, res['total'], res['daily_avg'], days_calc, vibe_map[vibe], currency)
             
-            # 2. Converte para Bytes em memória
-            img_buffer = io.BytesIO()
-            ticket_img.save(img_buffer, format="PNG")
-            img_bytes = img_buffer.getvalue()
-            
-            # 3. Botão de Download
+            # 2. Botão de Download Direto
             st.download_button(
                 label="💾 Baixar Imagem do Ticket",
-                data=img_bytes,
+                data=ticket_data,  # Passamos direto, sem converter
                 file_name=f"takeitiz_{dest}.png",
                 mime="image/png",
                 use_container_width=True
