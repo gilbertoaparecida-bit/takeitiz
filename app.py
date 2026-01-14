@@ -147,15 +147,18 @@ dest = st.text_input("Para onde vamos?", placeholder="Ex: Miami, Paris, Cancún.
 
 # Datas
 today = date.today()
-tomorrow = today + timedelta(days=1)
-travel_dates = st.date_input("Qual o período?", value=(today, tomorrow), min_value=today, format="DD/MM/YYYY")
+# CORREÇÃO UX: Iniciar com value=[] força o modo de seleção limpo
+travel_dates = st.date_input("Qual o período?", value=[], min_value=today, format="DD/MM/YYYY")
 
 days_calc = 0
 start_date = None
+
 if len(travel_dates) == 2:
     start_date, end_date = travel_dates
     delta = end_date - start_date
     days_calc = delta.days + 1
+elif len(travel_dates) == 1:
+    st.caption("📅 Selecione a data de volta para concluir o período.")
 
 col_viaj, col_moeda = st.columns(2)
 with col_viaj:
@@ -184,7 +187,8 @@ if st.button("💰 Calcular Orçamento", type="primary"):
     
     if not dest:
         msg_placeholder.error("⚠️ Ei, você esqueceu de incluir o destino!")
-        
+    elif days_calc == 0:
+        msg_placeholder.error("⚠️ Selecione as datas de ida e volta.")
     else:
         with st.spinner('Consultando índices globais e câmbio...'):
             result = engine.engine.calculate_cost(
