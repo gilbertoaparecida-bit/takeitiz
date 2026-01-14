@@ -8,14 +8,15 @@ import json
 
 # --- Configuração da Página ---
 st.set_page_config(
-    page_title="TakeItIz",
-    page_icon="🧳",
+    page_title="Takeitiz",
+    page_icon="icon.png", # Certifique-se de que icon.png está no GitHub
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- CONFIGURAÇÕES DO DOMÍNIO (NETLIFY) ---
+# --- CONFIGURAÇÕES DO DOMÍNIO ---
 DOMAIN_URL = "https://takeitiz.com.br"
+# Tenta pegar o ícone do domínio para garantir compatibilidade externa
 ICON_URL = f"{DOMAIN_URL}/icon.png"
 
 # --- FUNÇÕES UTILITÁRIAS ---
@@ -25,50 +26,54 @@ def format_brl(value, currency_symbol):
     return f"{currency_symbol} {val_str}"
 
 def setup_pwa():
-    manifest = {
-        "name": "TakeItIz",
-        "short_name": "TakeItIz",
-        "start_url": "/",
-        "display": "standalone",
-        "background_color": "#FFFFFF",
-        "theme_color": "#1E88E5",
-        "icons": [{"src": ICON_URL, "sizes": "192x192", "type": "image/png"}]
-    }
-    manifest_json = json.dumps(manifest)
-    b64_manifest = base64.b64encode(manifest_json.encode()).decode()
-    data_url = f"data:application/manifest+json;base64,{b64_manifest}"
-
+    # Meta tags internas para reforçar o PWA
     meta_tags = f"""
     <head>
-        <meta name="apple-mobile-web-app-title" content="TakeItIz">
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="default">
         <link rel="apple-touch-icon" href="{ICON_URL}">
         <link rel="icon" type="image/png" href="{ICON_URL}">
-        <link rel="manifest" href="{data_url}">
     </head>
     """
     st.markdown(meta_tags, unsafe_allow_html=True)
 
 setup_pwa()
 
-# --- CSS REFINADO ---
+# --- CSS REFINADO & REMOÇÃO DE RODAPÉ ---
 st.markdown("""
     <style>
+    /* Ocultar Menu Hambúrguer e Rodapé Padrão do Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    
+    /* Tentativa de ocultar o rodapé do modo Embed (Viewer Badge) */
+    .viewerBadge_container__1QSob {display: none !important;}
+    .styles_viewerBadge__1yB5_ {display: none !important;}
+    
+    /* Ajuste de espaçamento para mobile */
     .block-container {padding-top: 1rem !important; padding-bottom: 3rem !important;}
     
+    /* Botões */
     .stButton > button {
         width: 100%; border-radius: 12px; height: 3.5em; font-weight: bold;
         background-color: #1E88E5; color: white; border: none;
     }
     
+    /* Hero de Preço */
+    .price-hero {
+        font-family: 'Roboto', sans-serif; font-size: 42px; font-weight: 800;
+        color: #1E88E5; text-align: center; line-height: 1.0; margin-bottom: 5px;
+    }
+    .price-sub { font-size: 14px; color: #757575; text-align: center; margin-bottom: 20px; }
+    
+    /* Branding */
+    .brand-container { display: flex; align-items: center; gap: 10px; margin-bottom: 0px; }
+    .brand-title { font-size: 32px; font-weight: 900; color: #31333F; letter-spacing: -1px; }
+    .brand-icon { width: 35px; height: 35px; border-radius: 6px; }
+    
+    /* Grid de Amenities */
     .amenity-grid {
         display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;
     }
-    
     .amenity-btn {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         width: 100%; height: 85px; padding: 5px; background-color: #FFFFFF; 
@@ -76,36 +81,20 @@ st.markdown("""
         text-decoration: none !important; font-weight: 600; border: 1px solid #E0E0E0;
     }
     
-    .price-hero {
-        font-family: 'Roboto', sans-serif; font-size: 42px; font-weight: 800;
-        color: #1E88E5; text-align: center; line-height: 1.0; margin-bottom: 5px;
-    }
-    .price-sub { font-size: 14px; color: #757575; text-align: center; margin-bottom: 20px; }
-    
-    /* Título com ícone alinhado */
-    .brand-container { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
-    .brand-title { font-size: 32px; font-weight: 900; color: #31333F; letter-spacing: -1px; }
-    .brand-icon { width: 35px; height: 35px; }
+    .flight-warning { font-size: 12px; color: #888; font-style: italic; margin-top: -5px; margin-bottom: 15px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.image(ICON_URL, width=60)
-    st.markdown("### TakeItIz")
-    st.write("Compartilhe o App:")
-    msg_encoded = "Olha%20esse%20app%20que%20calcula%20viagem:%20https://takeitiz.com.br"
-    st.markdown(f'<a href="https://wa.me/?text={msg_encoded}" target="_blank" style="text-decoration:none;"><div style="background-color:#25D366; color:white; padding:10px; border-radius:8px; text-align:center; font-weight:bold;">📲 WhatsApp</div></a>', unsafe_allow_html=True)
-    st.text_input("Link:", DOMAIN_URL, disabled=True)
-
-# --- Cabeçalho (MALA AZUL OFICIAL) ---
+# --- Cabeçalho ---
 st.markdown(f"""
     <div class="brand-container">
         <img src="{ICON_URL}" class="brand-icon">
-        <div class="brand-title">TakeItIz</div>
+        <div class="brand-title">Takeitiz</div>
     </div>
 """, unsafe_allow_html=True)
-st.markdown("**Quanto custa o seu próximo destino?**")
+
+st.markdown("**Saiba quanto você vai gastar no destino escolhido.**")
+st.markdown('<p class="flight-warning">(não inclui passagens aéreas)</p>', unsafe_allow_html=True)
 st.write("---")
 
 # --- Inputs ---
@@ -143,11 +132,18 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             st.markdown(f'<div class="price-hero">{format_brl(res["daily_avg"], currency)}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="price-sub">por pessoa / dia<br>Total: {format_brl(res["total"], currency)}</div>', unsafe_allow_html=True)
 
-            # --- SHARE TICKET (RECOLHIDO EM EXPANDER) ---
-            with st.expander("📸 Gerar Resumo para Story"):
-                ticket_img = share.TicketGenerator().create_ticket(dest, res['total'], res['daily_avg'], days_calc, vibe_map[vibe], currency)
-                st.image(ticket_img, use_container_width=True)
-                st.info("👆 Pressione e segure a imagem para salvar no seu iPhone/Android.")
+            # --- TICKET DOWNLOAD ---
+            st.markdown("### 📸 Salvar Resumo")
+            ticket_img_bytes = share.TicketGenerator().create_ticket_bytes(dest, res['total'], res['daily_avg'], days_calc, vibe_map[vibe], currency)
+            
+            st.download_button(
+                label="💾 Baixar Imagem do Ticket",
+                data=ticket_img_bytes,
+                file_name=f"takeitiz_{dest}.png",
+                mime="image/png",
+                use_container_width=True
+            )
+            st.caption("Ao baixar, use a opção 'Salvar Imagem' do seu celular.")
 
             # --- BREAKDOWN ---
             with st.expander("📊 Detalhes do Custo"):
@@ -171,3 +167,28 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             </div>
             """
             st.markdown(html_grid, unsafe_allow_html=True)
+            
+            # --- METODOLOGIA ---
+            with st.expander("ℹ️ Como funciona o cálculo?"):
+                st.markdown("""
+                <div style="font-size: 13px; color: #555;">
+                O <b>Takeitiz</b> utiliza inteligência de dados para estimar seus gastos:
+                <br><br>
+                🌎 <b>Custo de Vida:</b> Baseado no banco de dados global <i>Numbeo</i>.<br>
+                🍔 <b>Poder de Compra:</b> Ajustado pelo índice <i>Big Mac</i> e inflação local.<br>
+                💱 <b>Câmbio:</b> Cotação atualizada em tempo real.<br><br>
+                <i>Os valores são estimativas médias para auxiliar no planejamento financeiro.</i>
+                </div>
+                """, unsafe_allow_html=True)
+
+# --- RODAPÉ COM SHARE ---
+st.write("")
+st.divider()
+st.markdown(f"""
+<div style="text-align:center; margin-bottom: 20px;">
+    <span style="font-size: 14px; font-weight: bold; color: #1E88E5;">Gostou? Divulgue!</span><br>
+    <a href="https://wa.me/?text=Olha%20esse%20app%20que%20calcula%20viagem:%20https://takeitiz.com.br" target="_blank" style="text-decoration:none; color: #25D366; font-weight:bold; font-size: 16px;">
+       📲 Enviar no WhatsApp
+    </a>
+</div>
+""", unsafe_allow_html=True)
