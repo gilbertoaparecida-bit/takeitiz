@@ -5,18 +5,18 @@ import share
 from datetime import date, timedelta
 import base64
 import json
+import io  # <--- IMPORTANTE: Adicionado para corrigir o download
 
 # --- Configuração da Página ---
 st.set_page_config(
     page_title="Takeitiz",
-    page_icon="icon.png", # Certifique-se de que icon.png está no GitHub
+    page_icon="icon.png", 
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
 # --- CONFIGURAÇÕES DO DOMÍNIO ---
 DOMAIN_URL = "https://takeitiz.com.br"
-# Tenta pegar o ícone do domínio para garantir compatibilidade externa
 ICON_URL = f"{DOMAIN_URL}/icon.png"
 
 # --- FUNÇÕES UTILITÁRIAS ---
@@ -26,7 +26,6 @@ def format_brl(value, currency_symbol):
     return f"{currency_symbol} {val_str}"
 
 def setup_pwa():
-    # Meta tags internas para reforçar o PWA
     meta_tags = f"""
     <head>
         <link rel="apple-touch-icon" href="{ICON_URL}">
@@ -37,20 +36,17 @@ def setup_pwa():
 
 setup_pwa()
 
-# --- CSS REFINADO & REMOÇÃO DE RODAPÉ ---
+# --- CSS REFINADO (TENTATIVA DE REMOVER FOOTER) ---
 st.markdown("""
     <style>
-    /* Ocultar Menu Hambúrguer e Rodapé Padrão do Streamlit */
+    /* Ocultar elementos nativos do Streamlit */
     #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
     header {visibility: hidden;}
+    footer {visibility: hidden; display: none !important;}
     
-    /* Tentativa de ocultar o rodapé do modo Embed (Viewer Badge) */
-    .viewerBadge_container__1QSob {display: none !important;}
-    .styles_viewerBadge__1yB5_ {display: none !important;}
-    
-    /* Ajuste de espaçamento para mobile */
-    .block-container {padding-top: 1rem !important; padding-bottom: 3rem !important;}
+    /* Tenta ocultar a barra inferior do modo Embed */
+    .stApp > footer {display: none !important;}
+    div[data-testid="stDecoration"] {display: none;}
     
     /* Botões */
     .stButton > button {
@@ -132,13 +128,21 @@ if st.button("💰 Calcular Orçamento", type="primary"):
             st.markdown(f'<div class="price-hero">{format_brl(res["daily_avg"], currency)}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="price-sub">por pessoa / dia<br>Total: {format_brl(res["total"], currency)}</div>', unsafe_allow_html=True)
 
-            # --- TICKET DOWNLOAD ---
+            # --- TICKET DOWNLOAD (CORRIGIDO) ---
             st.markdown("### 📸 Salvar Resumo")
-            ticket_img_bytes = share.TicketGenerator().create_ticket_bytes(dest, res['total'], res['daily_avg'], days_calc, vibe_map[vibe], currency)
             
+            # 1. Gera a imagem (Objeto PIL)
+            ticket_img = share.TicketGenerator().create_ticket(dest, res['total'], res['daily_avg'], days_calc, vibe_map[vibe], currency)
+            
+            # 2. Converte para Bytes em memória
+            img_buffer = io.BytesIO()
+            ticket_img.save(img_buffer, format="PNG")
+            img_bytes = img_buffer.getvalue()
+            
+            # 3. Botão de Download
             st.download_button(
                 label="💾 Baixar Imagem do Ticket",
-                data=ticket_img_bytes,
+                data=img_bytes,
                 file_name=f"takeitiz_{dest}.png",
                 mime="image/png",
                 use_container_width=True
