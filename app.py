@@ -120,7 +120,6 @@ with c_brand:
     """, unsafe_allow_html=True)
 
 with c_install:
-    # Este botão sumirá automaticamente se o usuário estiver no modo App (Standalone)
     if st.button("📲 Instalar", key="btn_install", use_container_width=True):
         install_guide()
 
@@ -179,10 +178,11 @@ if st.session_state.calculated:
     res = st.session_state.result
     st.success("✅ Orçamento pronto!")
     
-    # 1. Valores
+    # 1. Valores (COM A MUDANÇA SOLICITADA)
     def fmt(v): return f"{currency} {v:,.2f}".replace(',','X').replace('.',',').replace('X','.')
     st.markdown(f'<div class="price-hero">{fmt(res["daily_avg"])}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="price-sub">por pessoa / dia<br><b>Total: {fmt(res["total"])}</b></div>', unsafe_allow_html=True)
+    # Adicionado ({days_calc} diárias) discretamente
+    st.markdown(f'<div class="price-sub">por pessoa / dia ({days_calc} diárias)<br><b>Total: {fmt(res["total"])}</b></div>', unsafe_allow_html=True)
 
     # 2. Ticket
     with st.expander("📸 Baixar Resumo para Stories"):
