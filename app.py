@@ -113,12 +113,14 @@ style = st.select_slider("Estilo",
 
 vibe_display = st.selectbox("Vibe da Viagem", 
     ["Tourist Mix (Clássico)", "Cultura (História/Arte)", "Gastro (Comer Bem)", 
-     "Natureza (Relax/Trilhas)", "Festa (Vida Noturna)", "Familiar (Com Crianças)"])
+     "Natureza (Relax/Trilhas)", "Festa (Vida Noturna)", "Familiar (Com Crianças)", 
+     "Business (A Trabalho)"])
 
 vibe_map = {
     "Tourist Mix (Clássico)": "tourist_mix", "Cultura (História/Arte)": "cultura",
     "Gastro (Comer Bem)": "gastro", "Natureza (Relax/Trilhas)": "natureza",
-    "Festa (Vida Noturna)": "festa", "Familiar (Com Crianças)": "familiar"
+    "Festa (Vida Noturna)": "festa", "Familiar (Com Crianças)": "familiar",
+    "Business (A Trabalho)": "business"
 }
 
 # --- CÁLCULO ---
@@ -160,34 +162,35 @@ if st.session_state.calculated:
     # 4. CONCIERGE PERSONALIZADO
     st.subheader("🛎️ Concierge Digital")
     
-    # Pergunta Personalizada
+    # Concierge: Gastronomia removida pois já está fixa
     user_choices = st.multiselect(
         label=f"Além do básico, o que você quer curtir em {dest}?",
-        options=["Gastronomia", "Compras", "Vida Noturna", "Arte & Cultura", "Natureza", "Agenda de Eventos"],
-        default=["Gastronomia"]
+        options=["Compras", "Vida Noturna", "Arte & Cultura", "Natureza", "Agenda de Eventos", "Atrações/Coworking"],
+        default=[] # Começa limpo pois os essenciais já estão lá
     )
 
-    # Gerar Links
-    links_data = amenities.AmenitiesGenerator().generate_concierge_links(dest, style.lower(), start_date, days_calc)
+    # Gerar Links com Vibe
+    # Passamos a Vibe escolhida para que o gerador saiba se é Business ou Lazer
+    links_data = amenities.AmenitiesGenerator().generate_concierge_links(dest, style.lower(), start_date, days_calc, vibe_map[vibe_display])
     
-    # Montagem do Grid (SEM INDENTAÇÃO para evitar bug do Markdown)
+    # Montagem do Grid
     html_buttons = ""
     
-    # A. Botões Obrigatórios
-    fixed_keys = ["flight", "hotel", "insurance"]
+    # A. Botões Obrigatórios (Fixos: Voos, Hoteis, Comida, Seguro)
+    # Forma o Grid 2x2 inicial
+    fixed_keys = ["flight", "hotel", "food", "insurance"]
     for key in fixed_keys:
         item = links_data[key]
-        # Construção em linha única para segurança
         html_buttons += f'<a href="{item["url"]}" target="_blank" class="monetize-btn"><span class="btn-icon">{item["icon"]}</span><span class="btn-label">{item["label"]}</span></a>'
         
-    # B. Botões Dinâmicos
+    # B. Botões Dinâmicos (Concierge)
     selection_map = {
-        "Gastronomia": "food",
         "Compras": "shopping",
         "Vida Noturna": "night",
         "Arte & Cultura": "culture",
         "Natureza": "nature",
-        "Agenda de Eventos": "event"
+        "Agenda de Eventos": "event",
+        "Atrações/Coworking": "attr" # Este botão muda conforme Vibe (Passeio ou Coworking)
     }
     
     for choice in user_choices:
@@ -196,7 +199,7 @@ if st.session_state.calculated:
             item = links_data[key]
             html_buttons += f'<a href="{item["url"]}" target="_blank" class="monetize-btn"><span class="btn-icon">{item["icon"]}</span><span class="btn-label">{item["label"]}</span></a>'
 
-    # Renderização Final do Grid
+    # Renderização
     st.markdown(f'<div class="monetize-grid">{html_buttons}</div>', unsafe_allow_html=True)
     
     # 5. Metodologia & Share
