@@ -3,6 +3,7 @@ import engine
 import amenities
 import share
 from datetime import date
+import urllib.parse
 
 # --- Configuração Inicial ---
 st.set_page_config(
@@ -170,14 +171,12 @@ if st.session_state.calculated:
     )
 
     # Gerar Links com Vibe
-    # Passamos a Vibe escolhida para que o gerador saiba se é Business ou Lazer
     links_data = amenities.AmenitiesGenerator().generate_concierge_links(dest, style.lower(), start_date, days_calc, vibe_map[vibe_display])
     
     # Montagem do Grid
     html_buttons = ""
     
-    # A. Botões Obrigatórios (Fixos: Voos, Hoteis, Comida, Seguro)
-    # Forma o Grid 2x2 inicial
+    # A. Botões Obrigatórios (Fixos)
     fixed_keys = ["flight", "hotel", "food", "insurance"]
     for key in fixed_keys:
         item = links_data[key]
@@ -190,7 +189,7 @@ if st.session_state.calculated:
         "Arte & Cultura": "culture",
         "Natureza": "nature",
         "Agenda de Eventos": "event",
-        "Atrações/Coworking": "attr" # Este botão muda conforme Vibe (Passeio ou Coworking)
+        "Atrações/Coworking": "attr"
     }
     
     for choice in user_choices:
@@ -207,9 +206,15 @@ if st.session_state.calculated:
         st.write("Cálculos baseados em dados proprietários calibrados manualmente para o perfil brasileiro.")
     
     st.divider()
+    
+    # --- LINK DO WHATSAPP (CONVITE GENÉRICO) ---
+    # Mensagem de Viralização para trazer novos usuários
+    msg_text = f"Descubra quanto custa sua próxima viagem em segundos! ✈️ Orçamento de voos, hotéis e lazer no Takeitiz. Acesse: {DOMAIN}"
+    msg_encoded = urllib.parse.quote(msg_text)
+    
     st.markdown(f"""
     <div style="text-align:center; margin-bottom: 20px;">
-        <a href="https://wa.me/?text=Vou%20para%20{dest}!%20Orçamento%20Takeitiz:%20{fmt(res['total'])}" target="_blank" style="text-decoration:none; color: #25D366; font-weight:bold;">
+        <a href="https://wa.me/?text={msg_encoded}" target="_blank" style="text-decoration:none; color: #25D366; font-weight:bold;">
            📲 Enviar no WhatsApp
         </a>
     </div>
