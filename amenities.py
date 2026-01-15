@@ -3,7 +3,7 @@ from datetime import timedelta
 
 class AmenitiesGenerator:
     def __init__(self):
-        # Mapeamento de Vibe para termos de busca otimizados
+        # 1. Mapeamento de Termos de Busca (O que o Google busca)
         self.VIBE_MAP = {
             'tourist_mix': "top attractions",
             'cultura': "museums and historical sites",
@@ -13,17 +13,38 @@ class AmenitiesGenerator:
             'familiar': "family friendly activities"
         }
 
+        # 2. Mapeamento de Rótulos Dinâmicos (O que o usuário vê no botão)
+        self.LABEL_MAP = {
+            'tourist_mix': {'food': 'Gastronomia', 'event': 'Agenda Cultural', 'attr': 'Principais Atrações'},
+            'cultura':     {'food': 'Cafés & Bistrôs', 'event': 'Exposições & Arte', 'attr': 'Museus & História'},
+            'gastro':      {'food': 'Melhores Mesas', 'event': 'Degustações', 'attr': 'Mercados Locais'},
+            'natureza':    {'food': 'Comer c/ Vista', 'event': 'Ar Livre', 'attr': 'Parques & Trilhas'},
+            'festa':       {'food': 'Bares & Drinks', 'event': 'Festas & Shows', 'attr': 'Vida Noturna'},
+            'familiar':    {'food': 'Comer em Família', 'event': 'Teatro & Lazer', 'attr': 'Diversão Kids'}
+        }
+
+        # 3. Mapeamento de Ordenação do Booking (Otimização de Estilo)
+        self.BOOKING_ORDER = {
+            'econômico': 'price',                   # Menor preço primeiro
+            'moderado': 'review_score_and_price',   # Custo-benefício
+            'conforto': 'bayesian_review_score',    # Melhores avaliações
+            'luxo': 'class_descending'              # Estrelas (5->1)
+        }
+
     def _clean(self, text):
         return urllib.parse.quote_plus(text)
 
     def generate_links(self, destination, vibe, style, start_date=None, days=0):
         """
-        Gera links com datas injetadas (Booking) e restaura os 6 botões.
+        Gera links profundos com:
+        - Rótulos dinâmicos baseados na Vibe.
+        - Filtro de preço/estrelas no Booking baseado no Estilo.
+        - Injeção de datas.
         """
         
-        # 1. Preparar Datas para URL (Formato YYYY-MM-DD)
+        # A. Preparar Datas e Parâmetros
         date_params = ""
-        date_str = "" # Inicializa vazio para evitar erro se start_date for None
+        date_str = "" 
         
         if start_date:
             # Texto para Google Agenda (Ex: Janeiro 2026)
@@ -38,27 +59,34 @@ class AmenitiesGenerator:
                 end_date = start_date + timedelta(days=days)
                 date_params = f"&checkin={start_date}&checkout={end_date}"
             
-        # 2. VOOS (Google Flights)
+        # B. Definir Ordenação do Booking pelo Estilo
+        order_param = self.BOOKING_ORDER.get(style, 'review_score_and_price')
+
+        # C. Definir Rótulos pela Vibe (Fallback para tourist_mix)
+        labels = self.LABEL_MAP.get(vibe, self.LABEL_MAP['tourist_mix'])
+
+        # --- GERAÇÃO DOS LINKS ---
+
+        # 1. VOOS (Google Flights)
         flight_url = f"https://www.google.com/search?q=passagens+aereas+para+{self._clean(destination)}"
         
-        # 3. HOSPEDAGEM (Booking com DATAS)
-        hotel_url = f"https://www.booking.com/searchresults.pt-br.html?ss={self._clean(destination)}{date_params}"
+        # 2. HOSPEDAGEM (Booking Otimizado)
+        # Injeta datas e a ordenação correta (order=...)
+        hotel_url = f"https://www.booking.com/searchresults.pt-br.html?ss={self._clean(destination)}{date_params}&order={order_param}"
         
-        # 4. GASTRONOMIA (Google Maps)
+        # 3. GASTRONOMIA (Google Maps)
         food_url = f"https://www.google.com/maps/search/{self._clean(destination + ' restaurantes ' + style)}"
         
-        # 5. AGENDA (Google Search com Data)
+        # 4. AGENDA (Google Search com Data)
         event_url = f"https://www.google.com/search?q=agenda+cultural+eventos+{self._clean(destination)}+{self._clean(date_str)}"
         
-        # 6. PASSEIOS (TripAdvisor)
+        # 5. PASSEIOS (TripAdvisor)
         attr_term = self.VIBE_MAP.get(vibe, "things to do")
         attr_url = f"https://www.tripadvisor.com.br/Search?q={self._clean(destination + ' ' + attr_term)}"
         
-        # 7. SEGURO (Google Search)
+        # 6. SEGURO (Google Search)
         insurance_url = "https://www.google.com/search?q=seguro+viagem+cotacao"
 
-        # --- RETORNO ESTRUTURADO (AQUI ESTAVA O ERRO) ---
-        # O app.py espera chaves "links", "labels" e "icons".
         return {
             "links": {
                 "flight": flight_url,
@@ -71,9 +99,9 @@ class AmenitiesGenerator:
             "labels": {
                 "flight": "Monitorar Voos",
                 "hotel": "Ver Hotéis",
-                "food": "Gastronomia",
-                "event": "Agenda Cultural",
-                "attr": "Passeios",
+                "food": labels['food'],   # Dinâmico
+                "event": labels['event'], # Dinâmico
+                "attr": labels['attr'],   # Dinâmico
                 "insurance": "Seguro Viagem"
             },
             "icons": {
