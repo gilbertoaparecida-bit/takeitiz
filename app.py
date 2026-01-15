@@ -2,284 +2,247 @@ import streamlit as st
 import engine
 import amenities
 import share
-from datetime import date, timedelta
-import base64
-import json
+from datetime import date
+import urllib.parse
 
-# --- Configuração da Página ---
+# --- Configuração Inicial ---
 st.set_page_config(
-    page_title="TakeItIz",
-    page_icon="🧳",
+    page_title="Takeitiz",
+    page_icon="icon.png", 
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# --- FUNÇÕES UTILITÁRIAS ---
-def format_brl(value, currency_symbol):
-    """Transforma 1200.50 em 1.200,50"""
-    val_str = f"{value:,.2f}"
-    val_str = val_str.replace(',', 'X').replace('.', ',').replace('X', '.')
-    return f"{currency_symbol} {val_str}"
+# --- ASSETS ---
+DOMAIN = "https://takeitiz.com.br"
+ICON_URL = f"{DOMAIN}/icon.png"
 
-# --- FUNÇÃO PWA (APP NATIVO) ---
-def setup_pwa():
-    APP_ICON_URL = "https://cdn-icons-png.flaticon.com/512/201/201623.png"
+# --- FUNÇÃO: DIÁLOGO DE INSTALAÇÃO ---
+@st.dialog("📲 Como instalar o App")
+def install_guide():
+    st.write("O Takeitiz funciona melhor como um aplicativo na sua tela de início.")
+    st.write("---")
     
-    manifest = {
-        "name": "TakeItIz",
-        "short_name": "TakeItIz",
-        "start_url": "/",
-        "display": "standalone",
-        "background_color": "#FFFFFF",
-        "theme_color": "#FFFFFF",
-        "icons": [{"src": APP_ICON_URL, "sizes": "192x192", "type": "image/png"}]
-    }
-    manifest_json = json.dumps(manifest)
-    b64_manifest = base64.b64encode(manifest_json.encode()).decode()
-    data_url = f"data:application/manifest+json;base64,{b64_manifest}"
+    tab_ios, tab_android = st.tabs(["🍎 iPhone (iOS)", "🤖 Android"])
+    
+    with tab_ios:
+        st.markdown("""
+        1. Toque no botão **Compartilhar** (quadrado com seta) na barra inferior do Safari.
+        2. Role as opções para cima.
+        3. Toque em **'Adicionar à Tela de Início'**.
+        4. Confirme clicando em **Adicionar**.
+        """)
+        
+    with tab_android:
+        st.markdown("""
+        1. Toque nos **três pontinhos** no canto superior direito do Chrome.
+        2. Selecione **'Instalar aplicativo'** ou **'Adicionar à tela inicial'**.
+        3. Confirme clicando em **Instalar**.
+        """)
 
-    meta_tags = f"""
-    <head>
-        <meta name="apple-mobile-web-app-title" content="TakeItIz">
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="default">
-        <link rel="apple-touch-icon" href="{APP_ICON_URL}">
-        <link rel="manifest" href="{data_url}">
-        <style>
-            @media all and (display-mode: standalone) {{
-                #install-banner {{ display: none !important; }}
-            }}
-        </style>
-    </head>
-    """
-    st.markdown(meta_tags, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div id="install-banner" style="border: 1px solid #f0f2f6; border-radius: 10px; padding: 10px; margin-bottom: 20px; background-color: white;">
-        <details>
-            <summary style="cursor: pointer; font-weight: bold; color: #31333F;">📲 Instalar App (Tela Cheia)</summary>
-            <div style="margin-top: 10px; font-size: 14px; color: #555;">
-                <p>O app funcionará melhor se adicionado à tela de início.</p>
-                <div style="display: flex; gap: 20px;">
-                    <div><strong>iPhone:</strong> Compartilhar > Tela de Início</div>
-                    <div><strong>Android:</strong> Menu > Instalar App</div>
-                </div>
-            </div>
-        </details>
-    </div>
-    """, unsafe_allow_html=True)
-
-setup_pwa()
-
-# --- CSS REFINADO (GRID SYSTEM REAL & TYPOGRAPHY) ---
+# --- CSS (VISUAL & COMPORTAMENTO) ---
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    /* Ocultar Elementos Padrão do Streamlit */
+    [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
+    [data-testid="stDecoration"] {visibility: hidden !important; display: none !important;}
+    [data-testid="stStatusWidget"] {visibility: hidden !important;}
+    [data-testid="stFooter"] {display: none !important;}
     header {visibility: hidden;}
-    .block-container {padding-top: 0.5rem !important; padding-bottom: 3rem !important;}
+    footer {visibility: hidden; display: none !important;}
     
-    /* Botão Principal */
-    .stButton > button {
-        width: 100%; border-radius: 12px; height: 3.5em; font-weight: bold;
-        background-color: #1E88E5; color: white; border: none;
-    }
-    .stButton > button:hover { background-color: #1565C0; }
-    
-    /* Container Geral */
-    div.css-1r6slb0 {
-        background-color: #FFFFFF; border-radius: 15px; 
-        padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    /* Layout Mobile Otimizado */
+    .block-container {
+        padding-top: 1.0rem !important; 
+        padding-bottom: 5rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
     
-    /* GRID REAL PARA AMENITIES (Força 2 colunas no mobile) */
-    .amenity-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin-bottom: 12px;
+    /* Branding Header */
+    .brand-container { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+    .brand-title { font-size: 28px; font-weight: 900; color: #31333F; letter-spacing: -1px; margin: 0;}
+    .brand-icon { width: 32px; height: 32px; border-radius: 6px; }
+    
+    /* --- LÓGICA DO BOTÃO INSTALAR --- */
+    /* Se o navegador detectar que está em modo 'App' (Standalone), esconde o botão de instalar */
+    @media all and (display-mode: standalone) {
+        /* Esconde o botão que está na segunda coluna do topo */
+        [data-testid="column"]:nth-of-type(2) button {
+            display: none !important;
+        }
     }
     
-    /* Botões do Grid */
-    .amenity-btn {
+    /* Grid de Monetização */
+    .monetize-grid {
+        display: grid; 
+        grid-template-columns: 1fr 1fr; 
+        gap: 10px; 
+        margin-top: 10px;
+    }
+    .monetize-btn {
+        background-color: #FFFFFF;
+        border: 1px solid #E0E0E0;
+        border-radius: 12px;
+        padding: 12px 5px;
+        text-align: center;
+        text-decoration: none !important;
+        color: #31333F !important;
+        transition: transform 0.1s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        width: 100%; height: 85px; 
-        padding: 5px; background-color: #FFFFFF; color: #31333F !important;
-        text-align: center; border-radius: 12px; text-decoration: none !important;
-        font-weight: 600; border: 1px solid #E0E0E0; 
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s ease-in-out;
     }
-    .amenity-btn:hover {
-        background-color: #F0F7FF; border-color: #1E88E5; color: #1E88E5 !important;
-        transform: translateY(-2px);
-    }
-    .amenity-icon { font-size: 24px; margin-bottom: 4px; }
-    .amenity-text { font-size: 12px; line-height: 1.1; font-weight: 500; }
+    .monetize-btn:active { transform: scale(0.98); background-color: #F5F5F5; }
+    .btn-icon { font-size: 24px; margin-bottom: 5px; }
+    .btn-label { font-size: 13px; font-weight: 600; font-family: sans-serif; }
     
-    /* Tipografia de Preço */
+    /* Preço Hero */
     .price-hero {
-        font-family: 'Roboto', sans-serif; font-size: 42px; font-weight: 800;
-        color: #1E88E5; text-align: center; line-height: 1.0; margin-bottom: 5px;
+        font-family: 'Roboto', sans-serif; font-size: 46px; font-weight: 800;
+        color: #1E88E5; text-align: center; line-height: 1.0; margin-top: 10px;
     }
-    .price-sub {
-        font-size: 14px; color: #757575; text-align: center; margin-bottom: 20px;
-    }
+    .price-sub { font-size: 14px; color: #757575; text-align: center; margin-bottom: 25px; }
     
-    /* Titulo da Marca (Aumentado) */
-    .brand-title {
-        font-size: 32px; font-weight: 900; color: #31333F; letter-spacing: -1px; margin-bottom: 0px;
-    }
+    .flight-warning { font-size: 14px; color: #888; font-style: italic; margin-top: 0px; margin-bottom: 20px; }
+    
     </style>
 """, unsafe_allow_html=True)
 
-# --- Cabeçalho ---
-with st.container():
-    c1, c2 = st.columns([0.85, 0.15])
-    with c1:
-        st.markdown('<div class="brand-title">TakeItIz 🧳</div>', unsafe_allow_html=True)
-    
-    st.markdown("**Saiba quanto você vai gastar no destino escolhido.**")
-    st.caption("*(não inclui passagens aéreas)*")
-    st.write("---")
+# --- CABEÇALHO (MARCA + INSTALAR) ---
+c_brand, c_install = st.columns([0.65, 0.35])
 
-# --- Inputs ---
-dest = st.text_input("Para onde vamos?", placeholder="Ex: Miami, Paris, Cancún...")
+with c_brand:
+    st.markdown(f"""
+        <div class="brand-container">
+            <img src="{ICON_URL}" class="brand-icon">
+            <div class="brand-title">Takeitiz</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-# Datas
-today = date.today()
-tomorrow = today + timedelta(days=1)
-travel_dates = st.date_input("Qual o período?", value=(today, tomorrow), min_value=today, format="DD/MM/YYYY")
+with c_install:
+    # Este botão sumirá automaticamente se o usuário estiver no modo App (Standalone)
+    if st.button("📲 Instalar", key="btn_install", use_container_width=True):
+        install_guide()
+
+st.markdown("**Saiba quanto você vai gastar no destino escolhido.**")
+st.markdown('<p class="flight-warning">(não inclui passagens aéreas)</p>', unsafe_allow_html=True)
+st.write("---")
+
+# --- ESTADO ---
+if 'calculated' not in st.session_state:
+    st.session_state.calculated = False
+
+# --- INPUTS ---
+dest = st.text_input("Para onde vamos?", placeholder="Ex: Paris, Orlando, Nordeste...")
+travel_dates = st.date_input("Período da viagem", value=[], min_value=date.today(), format="DD/MM/YYYY")
 
 days_calc = 0
 start_date = None
 if len(travel_dates) == 2:
     start_date, end_date = travel_dates
-    delta = end_date - start_date
-    days_calc = delta.days + 1
+    days_calc = (end_date - start_date).days + 1
+    if days_calc < 1: days_calc = 1
 
-col_viaj, col_moeda = st.columns(2)
-with col_viaj:
-    travelers = st.slider("Pessoas", 1, 5, 2)
-with col_moeda:
-    currency = st.selectbox("Moeda", ["BRL", "USD", "EUR"])
+c1, c2 = st.columns(2)
+with c1: travelers = st.slider("Pessoas", 1, 6, 2)
+with c2: currency = st.selectbox("Moeda", ["BRL", "USD", "EUR"])
 
-st.write("**Estilo da Viagem**")
-style = st.select_slider("Estilo", options=["Econômico", "Moderado", "Conforto", "Luxo"], value="Moderado", label_visibility="collapsed")
+style = st.select_slider("Estilo", 
+    options=["Econômico", "Moderado", "Conforto", "Luxo", "Super Luxo (Exclusivo)"], 
+    value="Moderado")
 
-st.write("**Qual a Vibe principal?**")
-vibe_options = ["Tourist Mix (Padrão)", "Cultura (Museus)", "Gastro (Comer bem)", "Natureza (Ar livre)", "Festa (Nightlife)", "Familiar (Relax)"]
-vibe = st.selectbox("Vibe", vibe_options, label_visibility="collapsed")
+vibe_display = st.selectbox("Vibe da Viagem", 
+    ["Tourist Mix (Clássico)", "Cultura (História/Arte)", "Gastro (Comer Bem)", 
+     "Natureza (Relax/Trilhas)", "Festa (Vida Noturna)", "Familiar (Com Crianças)", 
+     "Business (A Trabalho)"])
 
-vibe_key_map = {
-    "Tourist Mix (Padrão)": "tourist_mix", "Cultura (Museus)": "cultura",
-    "Gastro (Comer bem)": "gastro", "Natureza (Ar livre)": "natureza",
-    "Festa (Nightlife)": "festa", "Familiar (Relax)": "familiar"
+vibe_map = {
+    "Tourist Mix (Clássico)": "tourist_mix", "Cultura (História/Arte)": "cultura",
+    "Gastro (Comer Bem)": "gastro", "Natureza (Relax/Trilhas)": "natureza",
+    "Festa (Vida Noturna)": "festa", "Familiar (Com Crianças)": "familiar",
+    "Business (A Trabalho)": "business"
 }
 
-st.write("") 
-msg_placeholder = st.empty() 
-
-# --- Botão Calcular ---
-if st.button("💰 Calcular Orçamento", type="primary"):
-    
-    if not dest:
-        msg_placeholder.error("⚠️ Ei, você esqueceu de incluir o destino!")
-        
+# --- CÁLCULO ---
+st.write("")
+if st.button("💰 Calcular Investimento", type="primary", use_container_width=True):
+    if not dest or days_calc == 0:
+        st.warning("⚠️ Por favor, informe o destino e as datas (ida e volta).")
     else:
-        with st.spinner('Consultando índices globais e câmbio...'):
-            result = engine.engine.calculate_cost(
-                destination=dest, days=days_calc, travelers=travelers,
-                style=style.lower(), currency=currency,
-                vibe=vibe_key_map[vibe], start_date=start_date
-            )
-            costs = result
-            
-            msg_placeholder.success("✅ Cálculo concluído. Role a página. 👇")
-            
-        # --- Resultado (NOVO LAYOUT) ---
-        st.write("")
-        with st.container():
-            st.markdown(f"### 🎫 Orçamento: {dest}")
-            st.caption(f"{days_calc} dias • {travelers} pessoas • {style}")
-            
-            # --- 1. PREÇO HERO (Por Pessoa/Dia) ---
-            daily_fmt = format_brl(costs['daily_avg'], currency)
-            total_fmt = format_brl(costs['total'], currency)
-            
-            st.markdown(f'<div class="price-hero">{daily_fmt}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="price-sub">por pessoa / dia<br>Total Estimado: {total_fmt}</div>', unsafe_allow_html=True)
-            
-            # --- SHARE TICKET ---
-            ticket_gen = share.TicketGenerator()
-            ticket_img = ticket_gen.create_ticket(
-                destination=dest, total_value=costs['total'], 
-                daily_value=costs['daily_avg'], days=days_calc, 
-                vibe=vibe_key_map[vibe], currency=currency
-            )
-            
-            st.download_button(
-                label="📸 Baixar Ticket (Story)",
-                data=ticket_img,
-                file_name=f"takeitiz_{dest}.png",
-                mime="image/png",
-                use_container_width=True
-            )
+        with st.spinner('O Concierge está fazendo as contas...'):
+            res = engine.engine.calculate_cost(dest, days_calc, travelers, style.lower(), currency, vibe_map[vibe_display], start_date)
+            st.session_state.result = res
+            st.session_state.calculated = True
 
-            # --- BREAKDOWN ---
-            with st.expander("📊 Detalhes do Custo"):
-                bk = costs['breakdown']
-                c1, c2, c3 = st.columns(3)
-                
-                # Formatação simples para os cards pequenos
-                h_val = f"{int(bk['lodging']):,}".replace(',', '.')
-                f_val = f"{int(bk['food']):,}".replace(',', '.')
-                l_val = f"{int(bk['transport'] + bk['activities'] + bk['misc']):,}".replace(',', '.')
+# --- EXIBIÇÃO ---
+if st.session_state.calculated:
+    res = st.session_state.result
+    st.success("✅ Orçamento pronto!")
+    
+    # 1. Valores
+    def fmt(v): return f"{currency} {v:,.2f}".replace(',','X').replace('.',',').replace('X','.')
+    st.markdown(f'<div class="price-hero">{fmt(res["daily_avg"])}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="price-sub">por pessoa / dia<br><b>Total: {fmt(res["total"])}</b></div>', unsafe_allow_html=True)
 
-                c1.metric("🏨 Hotel", h_val)
-                c2.metric("🍽️ Comida", f_val)
-                c3.metric("🚌 Lazer", l_val)
-                
-                st.divider()
-                st.caption("ℹ️ Memória de Cálculo (Auditoria):")
-                for log in result['audit']:
-                    icon = "✅" if log['status'] == "OK" else "⚠️"
-                    st.text(f"{icon} {log['msg']}")
+    # 2. Ticket
+    with st.expander("📸 Baixar Resumo para Stories"):
+        ticket_img = share.TicketGenerator().create_ticket(dest, res['total'], res['daily_avg'], days_calc, vibe_map[vibe_display], currency)
+        st.download_button("💾 Download Imagem", ticket_img, file_name=f"takeitiz_{dest}.png", mime="image/png", use_container_width=True)
 
-            # --- AMENITIES (GRID LAYOUT HTML PURO) ---
-            st.write("---")
-            st.subheader(f"✨ Curadoria: {dest}")
-            
-            gen = amenities.AmenitiesGenerator()
-            links = gen.generate_links(
-                destination=dest, vibe=vibe_key_map[vibe], 
-                style=style.lower(), start_date=start_date
-            )
-            
-            # Grid Manual em HTML (Garante 2 colunas no Mobile)
-            html_grid = f"""
-            <div class="amenity-grid">
-                <a href="{links["flight"]}" target="_blank" class="amenity-btn">
-                    <span class="amenity-icon">✈️</span><span class="amenity-text">{links["labels"]["flight_label"]}</span>
-                </a>
-                <a href="{links["hotel"]}" target="_blank" class="amenity-btn">
-                    <span class="amenity-icon">🛏️</span><span class="amenity-text">{links["labels"]["hotel_label"]}</span>
-                </a>
-                <a href="{links["food"]}" target="_blank" class="amenity-btn">
-                    <span class="amenity-icon">🍽️</span><span class="amenity-text">{links["labels"]["food_label"]}</span>
-                </a>
-                <a href="{links["event"]}" target="_blank" class="amenity-btn">
-                    <span class="amenity-icon">📅</span><span class="amenity-text">{links["labels"]["event_label"]}</span>
-                </a>
-            </div>
-            
-            <a href="{links["surprise"]}" target="_blank" class="amenity-btn" style="height: auto; padding: 12px; background-color: #FFF3E0; border-color: #FFB74D; margin-bottom: 15px;">
-                <span class="amenity-icon">🎲</span><span class="amenity-text">{links["labels"]["surprise_label"]}</span>
-            </a>
+    # 3. Detalhes
+    with st.expander("📊 Ver detalhes dos gastos"):
+        bk = res['breakdown']
+        col_a, col_b, col_c = st.columns(3)
+        col_a.metric("Hospedagem", fmt(bk['lodging']), delta_color="off")
+        col_b.metric("Alimentação", fmt(bk['food']), delta_color="off")
+        col_c.metric("Lazer/Transp.", fmt(bk['transport'] + bk['activities'] + bk['misc']), delta_color="off")
 
-            <a href="{links["attr"]}" target="_blank">
-                <button style="width: 100%; background-color: white; color: #1E88E5; border: 2px solid #1E88E5; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: bold;">
-                📍 Ver Mapa de Atrações
-                </button>
-            </a>
-            """
-            st.markdown(html_grid, unsafe_allow_html=True)
+    st.write("---")
+    
+    # 4. CONCIERGE PERSONALIZADO
+    st.subheader("🛎️ Concierge Digital")
+    
+    user_choices = st.multiselect(
+        label=f"Além do básico, o que você quer curtir em {dest}?",
+        options=["Compras", "Vida Noturna", "Arte & Cultura", "Natureza", "Agenda de Eventos", "Atrações/Coworking"],
+        default=[]
+    )
+
+    links_data = amenities.AmenitiesGenerator().generate_concierge_links(dest, style.lower(), start_date, days_calc, vibe_map[vibe_display])
+    
+    html_buttons = ""
+    
+    fixed_keys = ["flight", "hotel", "food", "insurance"]
+    for key in fixed_keys:
+        item = links_data[key]
+        html_buttons += f'<a href="{item["url"]}" target="_blank" class="monetize-btn"><span class="btn-icon">{item["icon"]}</span><span class="btn-label">{item["label"]}</span></a>'
+        
+    selection_map = {
+        "Compras": "shopping", "Vida Noturna": "night", "Arte & Cultura": "culture",
+        "Natureza": "nature", "Agenda de Eventos": "event", "Atrações/Coworking": "attr"
+    }
+    
+    for choice in user_choices:
+        key = selection_map.get(choice)
+        if key and key in links_data:
+            item = links_data[key]
+            html_buttons += f'<a href="{item["url"]}" target="_blank" class="monetize-btn"><span class="btn-icon">{item["icon"]}</span><span class="btn-label">{item["label"]}</span></a>'
+
+    st.markdown(f'<div class="monetize-grid">{html_buttons}</div>', unsafe_allow_html=True)
+    
+    with st.expander("ℹ️ Metodologia"):
+        st.write("Cálculos baseados em dados proprietários calibrados manualmente para o perfil brasileiro.")
+
+# --- RODAPÉ FIXO DE VIRALIZAÇÃO ---
+st.divider()
+
+msg_text = f"Descubra quanto custa sua próxima viagem em segundos! ✈️ Orçamento de voos, hotéis e lazer no Takeitiz. Acesse: {DOMAIN}"
+msg_encoded = urllib.parse.quote(msg_text)
+
+st.markdown(f"""
+<div style="text-align:center; margin-bottom: 20px;">
+    <a href="https://wa.me/?text={msg_encoded}" target="_blank" style="text-decoration:none; color: #25D366; font-weight:bold;">
+       📲 Enviar no WhatsApp
+    </a>
+</div>
+""", unsafe_allow_html=True)
