@@ -17,7 +17,7 @@ st.set_page_config(
 DOMAIN = "https://takeitiz.com.br"
 ICON_URL = f"{DOMAIN}/icon.png"
 
-# --- CSS NUCLEAR (Clean UI & Branding) ---
+# --- CSS NUCLEAR (Sniper Anti-Rodapé) ---
 st.markdown("""
     <style>
     /* 1. Esconder Header, Footer e Hamburger do Streamlit */
@@ -26,10 +26,11 @@ st.markdown("""
     footer {visibility: hidden; display: none !important;}
     .stDeployButton {display:none;}
     
-    /* 2. Esconder Botão Fullscreen e Badges */
+    /* 2. Ocultar Elementos via Test-ID (Mais seguro) */
     [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
     [data-testid="stDecoration"] {visibility: hidden !important; display: none !important;}
     [data-testid="stStatusWidget"] {visibility: hidden !important;}
+    [data-testid="stFooter"] {display: none !important;}
     
     /* 3. Layout Mobile Otimizado */
     .block-container {
@@ -69,7 +70,7 @@ st.markdown("""
     }
     .price-sub { font-size: 14px; color: #757575; text-align: center; margin-bottom: 25px; }
     
-    /* 6. Branding Header (Restaurado para Esquerda/Grande) */
+    /* 6. Branding Header (Identidade Restaurada) */
     .brand-container { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
     .brand-title { font-size: 32px; font-weight: 900; color: #31333F; letter-spacing: -1px; }
     .brand-icon { width: 35px; height: 35px; border-radius: 6px; }
@@ -80,7 +81,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO (RESTAURADO) ---
+# --- CABEÇALHO ---
 st.markdown(f"""
     <div class="brand-container">
         <img src="{ICON_URL}" class="brand-icon">
@@ -137,7 +138,7 @@ if st.button("💰 Calcular Investimento", type="primary", use_container_width=T
 if st.session_state.calculated:
     res = st.session_state.result
     
-    # Flash Verde Restaurado
+    # Sucesso Verde
     st.success("✅ Orçamento pronto!")
     
     # 1. Big Number
@@ -167,14 +168,14 @@ if st.session_state.calculated:
         col_b.metric("Alimentação", fmt(bk['food']), delta_color="off")
         col_c.metric("Lazer/Transp.", fmt(bk['transport'] + bk['activities'] + bk['misc']), delta_color="off")
 
-    # 4. Monetização (6 Botões Restaurados e Links com Data)
+    # 4. Curadoria Dinâmica (Labels Adaptativos)
     st.write("---")
     st.subheader(f"✨ Curadoria: {dest}")
     
-    # Passamos start_date e days_calc para gerar link com data
+    # Passamos start_date e days_calc para gerar link com data e ordenação
     data = amenities.AmenitiesGenerator().generate_links(dest, vibe_map[vibe_display], style.lower(), start_date, days_calc)
     L = data["links"]
-    T = data["labels"]
+    T = data["labels"] # Labels dinâmicos vêm daqui
     I = data["icons"]
     
     st.markdown(f"""
@@ -217,7 +218,7 @@ if st.session_state.calculated:
         </div>
         """, unsafe_allow_html=True)
     
-    # 6. Share Nativo (Movido para o final absoluto)
+    # 6. Share Nativo (No rodapé absoluto)
     st.divider()
     st.markdown(f"""
     <div style="text-align:center; margin-bottom: 20px;">
