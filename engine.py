@@ -31,17 +31,18 @@ class VibeConfig:
         'natureza':    {'food': 0.9, 'transport': 1.5, 'activities': 1.6, 'nightlife': 0.0, 'misc': 1.3},
         'festa':       {'food': 0.8, 'transport': 1.5, 'activities': 0.5, 'nightlife': 4.0, 'misc': 1.2},
         'familiar':    {'food': 1.2, 'transport': 1.4, 'activities': 1.1, 'nightlife': 0.0, 'misc': 1.5},
+        # PERFIL BUSINESS: Transporte alto (Uber/Taxi), Atividades baixas, Comida executiva
+        'business':    {'food': 1.3, 'transport': 2.0, 'activities': 0.2, 'nightlife': 0.3, 'misc': 1.5},
     }
 
 class StyleConfig:
-    # AQUI ESTÁ A NOVA CATEGORIA SUPER LUXO
-    # hotel_pct 1.75 gera um multiplicador exponencial de ~8x a base
+    # hotel_pct 1.75 gera um multiplicador exponencial para Super Luxo
     SETTINGS = {
         'econômico':  {'factor': 0.60, 'hotel_pct': 0.15},
         'moderado':   {'factor': 1.00, 'hotel_pct': 0.40}, 
         'conforto':   {'factor': 1.60, 'hotel_pct': 0.75},
         'luxo':       {'factor': 3.20, 'hotel_pct': 0.95},
-        'super_luxo': {'factor': 6.00, 'hotel_pct': 1.75} # Categoria Ritz/Four Seasons
+        'super_luxo': {'factor': 6.00, 'hotel_pct': 1.75}
     }
 
 # --- 3. PROVEDOR DE CÂMBIO ---
@@ -96,7 +97,7 @@ class FXProvider:
 class GeoCostProvider:
     def __init__(self):
         self.audit = []
-        self.geolocator = Nominatim(user_agent="takeitiz_app_v10_audit")
+        self.geolocator = Nominatim(user_agent="takeitiz_app_v11_audit")
         
         self.SEASONALITY_MATRIX = {
             'norte_temperado': [0.80, 0.80, 0.90, 0.95, 1.00, 1.10, 1.15, 1.15, 1.00, 0.95, 0.85, 1.00],
@@ -119,13 +120,13 @@ class GeoCostProvider:
             if self._normalize(city_key) == dest_clean or (len(city_key) > 4 and self._normalize(city_key) in dest_clean):
                 return data['idx'], data['profile'], data.get('modifiers', {})
 
-        # 2. Busca por Inferência (Brasil e EUA Genérico)
+        # 2. Busca por Inferência
         if "brasil" in dest_clean or "brazil" in dest_clean or any(x in dest_clean for x in [" sp", " rj", " mg", " rs", " ba"]):
              return database.DEFAULTS['BR']['idx'], database.DEFAULTS['BR']['profile'], {}
         if "usa" in dest_clean or "estados unidos" in dest_clean:
             return database.DEFAULTS['US']['idx'], database.DEFAULTS['US']['profile'], {}
 
-        # 3. Busca por Satélite (com Piso de Segurança)
+        # 3. Busca por Satélite
         try:
             location = self.geolocator.geocode(destination, language='en', timeout=2)
             if location:
@@ -138,9 +139,8 @@ class GeoCostProvider:
                 elif country in ['us', 'gb', 'fr', 'es', 'it', 'de']: profile = 'norte_temperado'
                 elif 'florida' in state: profile = 'inverno_fugitivo'
                 
-                # PISO DE SEGURANÇA PARA FALLBACK
                 idx = 100
-                if country == 'us': idx = 140 # Nunca subestimar EUA
+                if country == 'us': idx = 140
                 elif country in ['gb', 'fr', 'ch']: idx = 120
                 elif profile == 'norte_temperado': idx = 115
                 elif profile == 'sul_tropical': idx = 95
@@ -155,7 +155,6 @@ class AccommodationProvider:
     def estimate_adr(self, price_index, style_pct):
         BASE_HOTEL_USD = 120.0
         city_factor = price_index / 100.0
-        # Fórmula Exponencial: Permite que Super Luxo (1.75) dispare o preço
         style_factor = np.exp(1.6 * (style_pct - 0.45))
         return BASE_HOTEL_USD * city_factor * style_factor
 
@@ -175,7 +174,6 @@ class CostEngine:
             matrix = self.geo.SEASONALITY_MATRIX.get(profile, self.geo.SEASONALITY_MATRIX['padrao'])
             season_factor = matrix[start_date.month - 1]
 
-        # Sanitização da chave de estilo para garantir compatibilidade
         style_key = style.lower()
         if "super" in style_key: style_key = "super_luxo"
         elif "econ" in style_key: style_key = "econômico"
