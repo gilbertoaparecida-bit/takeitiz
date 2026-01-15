@@ -3,7 +3,6 @@ import engine
 import amenities
 import share
 from datetime import date
-import base64
 
 # --- Configuração Inicial ---
 st.set_page_config(
@@ -158,35 +157,30 @@ if st.session_state.calculated:
 
     st.write("---")
     
-    # 4. CONCIERGE PERSONALIZADO (A Mágica Acontece Aqui)
+    # 4. CONCIERGE PERSONALIZADO
     st.subheader("🛎️ Concierge Digital")
     
-    # Pergunta Personalizada com o Destino
+    # Pergunta Personalizada
     user_choices = st.multiselect(
         label=f"Além do básico, o que você quer curtir em {dest}?",
         options=["Gastronomia", "Compras", "Vida Noturna", "Arte & Cultura", "Natureza", "Agenda de Eventos"],
-        default=["Gastronomia"] # Default leve para não vir vazio
+        default=["Gastronomia"]
     )
 
-    # Gerar Links Baseados na Escolha
+    # Gerar Links
     links_data = amenities.AmenitiesGenerator().generate_concierge_links(dest, style.lower(), start_date, days_calc)
     
-    # Montagem do Grid Dinâmico
+    # Montagem do Grid (SEM INDENTAÇÃO para evitar bug do Markdown)
     html_buttons = ""
     
-    # A. Botões Obrigatórios (Sempre aparecem)
+    # A. Botões Obrigatórios
     fixed_keys = ["flight", "hotel", "insurance"]
     for key in fixed_keys:
         item = links_data[key]
-        html_buttons += f"""
-        <a href="{item['url']}" target="_blank" class="monetize-btn">
-            <span class="btn-icon">{item['icon']}</span>
-            <span class="btn-label">{item['label']}</span>
-        </a>
-        """
+        # Construção em linha única para segurança
+        html_buttons += f'<a href="{item["url"]}" target="_blank" class="monetize-btn"><span class="btn-icon">{item["icon"]}</span><span class="btn-label">{item["label"]}</span></a>'
         
-    # B. Botões Dinâmicos (Conforme seleção)
-    # Mapeamento: "Nome na Seleção" -> "Chave no Dicionário"
+    # B. Botões Dinâmicos
     selection_map = {
         "Gastronomia": "food",
         "Compras": "shopping",
@@ -200,16 +194,12 @@ if st.session_state.calculated:
         key = selection_map.get(choice)
         if key and key in links_data:
             item = links_data[key]
-            html_buttons += f"""
-            <a href="{item['url']}" target="_blank" class="monetize-btn">
-                <span class="btn-icon">{item['icon']}</span>
-                <span class="btn-label">{item['label']}</span>
-            </a>
-            """
+            html_buttons += f'<a href="{item["url"]}" target="_blank" class="monetize-btn"><span class="btn-icon">{item["icon"]}</span><span class="btn-label">{item["label"]}</span></a>'
 
+    # Renderização Final do Grid
     st.markdown(f'<div class="monetize-grid">{html_buttons}</div>', unsafe_allow_html=True)
     
-    # 5. Metodologia & Share (Fim)
+    # 5. Metodologia & Share
     with st.expander("ℹ️ Metodologia"):
         st.write("Cálculos baseados em dados proprietários calibrados manualmente para o perfil brasileiro.")
     
