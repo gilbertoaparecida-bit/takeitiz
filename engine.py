@@ -31,12 +31,10 @@ class VibeConfig:
         'natureza':    {'food': 0.9, 'transport': 1.5, 'activities': 1.6, 'nightlife': 0.0, 'misc': 1.3},
         'festa':       {'food': 0.8, 'transport': 1.5, 'activities': 0.5, 'nightlife': 4.0, 'misc': 1.2},
         'familiar':    {'food': 1.2, 'transport': 1.4, 'activities': 1.1, 'nightlife': 0.0, 'misc': 1.5},
-        # PERFIL BUSINESS: Transporte alto (Uber/Taxi), Atividades baixas, Comida executiva
         'business':    {'food': 1.3, 'transport': 2.0, 'activities': 0.2, 'nightlife': 0.3, 'misc': 1.5},
     }
 
 class StyleConfig:
-    # hotel_pct 1.75 gera um multiplicador exponencial para Super Luxo
     SETTINGS = {
         'econômico':  {'factor': 0.60, 'hotel_pct': 0.15},
         'moderado':   {'factor': 1.00, 'hotel_pct': 0.40}, 
@@ -90,7 +88,9 @@ class FXProvider:
         if backup:
             return backup * TOURIST_SPREAD if target_currency == "BRL" else backup
 
-        fallback = {"BRL": 5.90, "EUR": 0.92}
+        # HARDENING: Fallback Semanal
+        # TODO: Implementar formulário Admin para input dinâmico destes valores
+        fallback = {"BRL": 6.00, "EUR": 0.95} 
         return fallback.get(target_currency, 1.0)
 
 # --- 4. GEOLOCALIZAÇÃO ---
@@ -111,22 +111,18 @@ class GeoCostProvider:
         return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn').lower().strip()
 
     def get_data(self, destination):
-        # Retorna (idx, profile, modifiers)
         self.audit = [] 
         dest_clean = self._normalize(destination)
         
-        # 1. Busca Exata
         for city_key, data in database.CITIES.items():
             if self._normalize(city_key) == dest_clean or (len(city_key) > 4 and self._normalize(city_key) in dest_clean):
                 return data['idx'], data['profile'], data.get('modifiers', {})
 
-        # 2. Busca por Inferência
         if "brasil" in dest_clean or "brazil" in dest_clean or any(x in dest_clean for x in [" sp", " rj", " mg", " rs", " ba"]):
              return database.DEFAULTS['BR']['idx'], database.DEFAULTS['BR']['profile'], {}
         if "usa" in dest_clean or "estados unidos" in dest_clean:
             return database.DEFAULTS['US']['idx'], database.DEFAULTS['US']['profile'], {}
 
-        # 3. Busca por Satélite
         try:
             location = self.geolocator.geocode(destination, language='en', timeout=2)
             if location:
