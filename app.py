@@ -135,7 +135,7 @@ if st.button("💰 Calcular Investimento", type="primary", use_container_width=T
             st.session_state.result = res
             st.session_state.calculated = True
 
-# --- EXIBIÇÃO ---
+# --- EXIBIÇÃO DO RESULTADO (SÓ APARECE SE CALCULAR) ---
 if st.session_state.calculated:
     res = st.session_state.result
     st.success("✅ Orçamento pronto!")
@@ -201,21 +201,21 @@ if st.session_state.calculated:
     # Renderização
     st.markdown(f'<div class="monetize-grid">{html_buttons}</div>', unsafe_allow_html=True)
     
-    # 5. Metodologia & Share
+    # 5. Metodologia
     with st.expander("ℹ️ Metodologia"):
         st.write("Cálculos baseados em dados proprietários calibrados manualmente para o perfil brasileiro.")
-    
-    st.divider()
-    
-    # --- LINK DO WHATSAPP (CONVITE GENÉRICO) ---
-    # Mensagem de Viralização para trazer novos usuários
-    msg_text = f"Descubra quanto custa sua próxima viagem em segundos! ✈️ Orçamento de voos, hotéis e lazer no Takeitiz. Acesse: {DOMAIN}"
-    msg_encoded = urllib.parse.quote(msg_text)
-    
-    st.markdown(f"""
-    <div style="text-align:center; margin-bottom: 20px;">
-        <a href="https://wa.me/?text={msg_encoded}" target="_blank" style="text-decoration:none; color: #25D366; font-weight:bold;">
-           📲 Enviar no WhatsApp
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
+
+# --- RODAPÉ FIXO (FORA DO IF - SEMPRE VISÍVEL) ---
+st.divider()
+
+# Mensagem de Viralização para trazer novos usuários
+msg_text = f"Descubra quanto custa sua próxima viagem em segundos! ✈️ Orçamento de voos, hotéis e lazer no Takeitiz. Acesse: {DOMAIN}"
+msg_encoded = urllib.parse.quote(msg_text)
+
+st.markdown(f"""
+<div style="text-align:center; margin-bottom: 20px;">
+    <a href="https://wa.me/?text={msg_encoded}" target="_blank" style="text-decoration:none; color: #25D366; font-weight:bold;">
+       📲 Enviar no WhatsApp
+    </a>
+</div>
+""", unsafe_allow_html=True)
