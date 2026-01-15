@@ -6,94 +6,76 @@ from PIL import Image, ImageDraw, ImageFont
 class TicketGenerator:
     def __init__(self):
         # Fontes do Google Fonts
-        self.FONT_BOLD_URL = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf"
-        self.FONT_REG_URL = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Regular.ttf"
-        self.FONT_BLACK_URL = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Black.ttf"
+        self.FONT_BOLD = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf"
+        self.FONT_REG = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Regular.ttf"
+        self.FONT_BLACK = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Black.ttf"
 
-        self.font_hero = self.get_font(self.FONT_BLACK_URL, 80)
-        self.font_dest = self.get_font(self.FONT_BOLD_URL, 40)
-        self.font_label = self.get_font(self.FONT_REG_URL, 20)
-        self.font_sub = self.get_font(self.FONT_REG_URL, 16)
-        self.font_logo = self.get_font(self.FONT_BOLD_URL, 24)
+        self.font_hero = self.get_font(self.FONT_BLACK, 80)
+        self.font_dest = self.get_font(self.FONT_BOLD, 45)
+        self.font_label = self.get_font(self.FONT_REG, 22)
+        self.font_url = self.get_font(self.FONT_BOLD, 26)
+        self.font_logo = self.get_font(self.FONT_BOLD, 28)
 
     def get_font(self, url, size):
         try:
-            resp = requests.get(url, timeout=5)
+            resp = requests.get(url, timeout=3)
             resp.raise_for_status()
             return ImageFont.truetype(io.BytesIO(resp.content), size)
-        except Exception:
+        except:
             return ImageFont.load_default()
 
-    def format_brl(self, value, currency):
-        # Lógica manual de formatação BR
-        val_str = f"{value:,.2f}" # Ex: 1,200.50
-        val_str = val_str.replace(',', 'X').replace('.', ',').replace('X', '.') # Ex: 1.200,50
-        if currency == "BRL":
-            return f"R$ {val_str}"
-        elif currency == "EUR":
-            return f"€ {val_str}"
-        else:
-            return f"$ {val_str}"
+    def format_money(self, val, curr):
+        s = f"{val:,.2f}".replace(',','X').replace('.',',').replace('X','.')
+        sym = {"BRL": "R$", "USD": "$", "EUR": "€"}.get(curr, "$")
+        return f"{sym} {s}"
 
-    def create_ticket(self, destination, total_value, daily_value, days, vibe, currency):
+    def create_ticket(self, destination, total, daily, days, vibe, currency):
         W, H = 600, 900
-        img = Image.new('RGB', (W, H), color='#FFFFFF')
+        # Fundo Azul Marca Takeitiz
+        img = Image.new('RGB', (W, H), color='#1E88E5')
         draw = ImageDraw.Draw(img)
 
-        # 1. Background Header
-        draw.rectangle([(0, 0), (W, 250)], fill='#1E88E5')
+        # CARD BRANCO CENTRAL
+        margin = 30
+        top = 120
+        bottom = H - 120
+        draw.rectangle([(margin, top), (W-margin, bottom)], fill='#FFFFFF', outline=None)
         
-        # 2. Logo e Header
-        draw.text((W/2, 60), "TakeItIz 🧳", font=self.font_logo, fill='#FFFFFF', anchor="mm")
-        draw.text((W/2, 100), "ORÇAMENTO DE VIAGEM", font=self.font_sub, fill='#BBDEFB', anchor="mm")
+        # 1. HEADER (Logo no topo azul)
+        draw.text((W/2, 60), "Takeitiz 🧳", font=self.font_logo, fill='#FFFFFF', anchor="mm")
 
-        # 3. Card Branco
-        card_margin = 40
-        card_top = 180
-        card_bottom = H - 60
-        draw.rectangle(
-            [(card_margin, card_top), (W - card_margin, card_bottom)], 
-            fill='#FFFFFF', outline='#E0E0E0', width=1
-        )
-
-        # 4. Destino
-        dest_text = destination.upper()
-        wrapper = textwrap.TextWrapper(width=14) 
-        dest_lines = wrapper.wrap(text=dest_text)
-
-        cursor_y = card_top + 80
-        line_height = 45
+        # 2. CONTEÚDO NO CARD
+        cursor = top + 80
+        
+        # Destino
+        dest_lines = textwrap.wrap(destination.upper(), width=14)
         for line in dest_lines:
-            draw.text((W/2, cursor_y), line, font=self.font_dest, fill='#31333F', anchor="mm")
-            cursor_y += line_height
-
-        # Divisor
-        cursor_y += 20
-        draw.line([(100, cursor_y), (500, cursor_y)], fill='#F0F0F0', width=2)
+            draw.text((W/2, cursor), line, font=self.font_dest, fill='#333333', anchor="mm")
+            cursor += 50
+            
+        cursor += 40
+        draw.line([(150, cursor), (450, cursor)], fill='#EEEEEE', width=3)
+        cursor += 60
         
-        # 5. O Grande Número (BR Format)
-        cursor_y += 60
-        draw.text((W/2, cursor_y), "POR PESSOA / DIA", font=self.font_sub, fill='#9E9E9E', anchor="mm")
+        # Diária
+        draw.text((W/2, cursor), "POR PESSOA / DIA", font=self.font_label, fill='#888888', anchor="mm")
+        cursor += 50
+        draw.text((W/2, cursor), self.format_money(daily, currency), font=self.font_hero, fill='#1E88E5', anchor="mm")
         
-        cursor_y += 60
-        daily_fmt = self.format_brl(daily_value, currency)
-        draw.text((W/2, cursor_y), daily_fmt, font=self.font_hero, fill='#1E88E5', anchor="mm")
+        # Total
+        cursor += 120
+        draw.rectangle([(margin+20, cursor), (W-margin-20, cursor+140)], fill='#F5F9FF')
+        txt_y = cursor + 35
+        draw.text((W/2, txt_y), f"TOTAL ({days} DIAS)", font=self.font_label, fill='#555555', anchor="mm")
+        draw.text((W/2, txt_y+40), self.format_money(total, currency), font=self.font_url, fill='#333333', anchor="mm")
+        draw.text((W/2, txt_y+80), f"Vibe: {vibe.title()}", font=self.font_label, fill='#1E88E5', anchor="mm")
 
-        # 6. Rodapé do Card
-        cursor_y += 100
-        draw.rectangle([(card_margin + 10, cursor_y), (W - card_margin - 10, cursor_y + 140)], fill='#F8F9FA')
-        
-        text_y = cursor_y + 35
-        total_fmt = self.format_brl(total_value, currency)
-        
-        draw.text((W/2, text_y), f"INVESTIMENTO TOTAL ({days} DIAS)", font=self.font_sub, fill='#757575', anchor="mm")
-        draw.text((W/2, text_y + 35), total_fmt, font=self.font_label, fill='#31333F', anchor="mm")
-        draw.text((W/2, text_y + 70), f"Vibe: {vibe.replace('_', ' ').title()}", font=self.font_sub, fill='#1E88E5', anchor="mm")
+        # 3. RODAPÉ DE GROWTH (Preto com URL amarela/branca)
+        footer_h = 90
+        draw.rectangle([(0, H - footer_h), (W, H)], fill='#212121')
+        draw.text((W/2, H - (footer_h/2)), "Baixe agora: takeitiz.com.br", font=self.font_url, fill='#FFFFFF', anchor="mm")
 
-        # 7. Rodapé App
-        draw.text((W/2, H - 30), "Planejado com TakeItIz App", font=self.font_sub, fill='#BDBDBD', anchor="mm")
-
-        img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format='PNG')
-        img_byte_arr.seek(0)
-        return img_byte_arr
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        return buf
