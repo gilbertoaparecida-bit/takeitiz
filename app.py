@@ -2,11 +2,10 @@ import streamlit as st
 import engine
 import amenities
 import share
-from datetime import date, timedelta
+from datetime import date
 import base64
-import json
 
-# --- Configuração da Página ---
+# --- Configuração Inicial ---
 st.set_page_config(
     page_title="Takeitiz",
     page_icon="icon.png", 
@@ -14,183 +13,195 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- CONFIGURAÇÕES DO DOMÍNIO ---
-DOMAIN_URL = "https://takeitiz.com.br"
-ICON_URL = f"{DOMAIN_URL}/icon.png"
+# --- ASSETS ---
+DOMAIN = "https://takeitiz.com.br"
+ICON_URL = f"{DOMAIN}/icon.png"
 
-# --- FUNÇÕES UTILITÁRIAS ---
-def format_brl(value, currency_symbol):
-    val_str = f"{value:,.2f}"
-    val_str = val_str.replace(',', 'X').replace('.', ',').replace('X', '.')
-    return f"{currency_symbol} {val_str}"
-
-def setup_pwa():
-    meta_tags = f"""
-    <head>
-        <link rel="apple-touch-icon" href="{ICON_URL}">
-        <link rel="icon" type="image/png" href="{ICON_URL}">
-    </head>
-    """
-    st.markdown(meta_tags, unsafe_allow_html=True)
-
-setup_pwa()
-
-# --- CSS REFINADO (REMOCÃO TOTAL DE RODAPÉS) ---
+# --- CSS NUCLEAR (Clean UI & Branding) ---
 st.markdown("""
     <style>
-    /* Ocultar Menu Hambúrguer e Rodapés */
+    /* 1. Esconder Header, Footer e Hamburger do Streamlit */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden; display: none !important;}
+    .stDeployButton {display:none;}
     
-    /* Ocultar Viewer Badge (Fullscreen Link) */
-    .viewerBadge_container__1QSob {display: none !important;}
-    div[data-testid="stDecoration"] {display: none;}
-    a[href*="streamlit.app"] {display: none !important;}
+    /* 2. Esconder Botão Fullscreen e Badges (O "Vazamento") */
+    [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
+    [data-testid="stDecoration"] {visibility: hidden !important; display: none !important;}
+    [data-testid="stStatusWidget"] {visibility: hidden !important;}
     
-    /* Ajuste de Padding */
-    .block-container {padding-top: 1rem !important; padding-bottom: 3rem !important;}
-    
-    /* Botões */
-    .stButton > button {
-        width: 100%; border-radius: 12px; height: 3.5em; font-weight: bold;
-        background-color: #1E88E5; color: white; border: none;
+    /* 3. Layout Mobile Otimizado */
+    .block-container {
+        padding-top: 2rem !important; 
+        padding-bottom: 5rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
     
-    /* Hero de Preço */
+    /* 4. Estilo dos Botões de Monetização */
+    .monetize-grid {
+        display: grid; 
+        grid-template-columns: 1fr 1fr; 
+        gap: 10px; 
+        margin-top: 10px;
+    }
+    .monetize-btn {
+        background-color: #FFFFFF;
+        border: 1px solid #E0E0E0;
+        border-radius: 12px;
+        padding: 12px 5px;
+        text-align: center;
+        text-decoration: none !important;
+        color: #31333F !important;
+        transition: transform 0.1s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .monetize-btn:active { transform: scale(0.98); background-color: #F5F5F5; }
+    .btn-icon { font-size: 24px; display: block; margin-bottom: 5px; }
+    .btn-label { font-size: 13px; font-weight: 600; font-family: sans-serif; }
+    
+    /* 5. Preço Hero */
     .price-hero {
-        font-family: 'Roboto', sans-serif; font-size: 42px; font-weight: 800;
-        color: #1E88E5; text-align: center; line-height: 1.0; margin-bottom: 5px;
+        font-family: 'Roboto', sans-serif; font-size: 46px; font-weight: 800;
+        color: #1E88E5; text-align: center; line-height: 1.0; margin-top: 10px;
     }
-    .price-sub { font-size: 14px; color: #757575; text-align: center; margin-bottom: 20px; }
+    .price-sub { font-size: 14px; color: #757575; text-align: center; margin-bottom: 25px; }
     
-    /* Branding */
-    .brand-container { display: flex; align-items: center; gap: 10px; margin-bottom: 0px; }
-    .brand-title { font-size: 32px; font-weight: 900; color: #31333F; letter-spacing: -1px; }
-    .brand-icon { width: 35px; height: 35px; border-radius: 6px; }
-    
-    /* Grid de Amenities */
-    .amenity-grid {
-        display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;
-    }
-    .amenity-btn {
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        width: 100%; height: 85px; padding: 5px; background-color: #FFFFFF; 
-        color: #31333F !important; text-align: center; border-radius: 12px; 
-        text-decoration: none !important; font-weight: 600; border: 1px solid #E0E0E0;
-    }
-    
-    .flight-warning { font-size: 12px; color: #888; font-style: italic; margin-top: -5px; margin-bottom: 15px; }
+    /* 6. Branding Header */
+    .brand-box { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px; }
+    .brand-img { width: 32px; height: 32px; border-radius: 6px; }
+    .brand-txt { font-size: 24px; font-weight: 900; color: #31333F; letter-spacing: -0.5px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- Cabeçalho ---
+# --- CABEÇALHO ---
 st.markdown(f"""
-    <div class="brand-container">
-        <img src="{ICON_URL}" class="brand-icon">
-        <div class="brand-title">Takeitiz</div>
+    <div class="brand-box">
+        <img src="{ICON_URL}" class="brand-img">
+        <div class="brand-txt">Takeitiz</div>
     </div>
 """, unsafe_allow_html=True)
 
-st.markdown("**Saiba quanto você vai gastar no destino escolhido.**")
-st.markdown('<p class="flight-warning">(não inclui passagens aéreas)</p>', unsafe_allow_html=True)
-st.write("---")
+# --- ESTADO E LÓGICA ---
+if 'calculated' not in st.session_state:
+    st.session_state.calculated = False
 
-# --- Inputs ---
-dest = st.text_input("Para onde vamos?", placeholder="Ex: Paris, Gramado, Toquio...")
-travel_dates = st.date_input("Qual o período?", value=[], min_value=date.today(), format="DD/MM/YYYY")
+# --- FORMULÁRIO ---
+dest = st.text_input("Para onde vamos?", placeholder="Ex: Paris, Orlando, Nordeste...")
+travel_dates = st.date_input("Período da viagem", value=[], min_value=date.today(), format="DD/MM/YYYY")
 
 days_calc = 0
 start_date = None
 if len(travel_dates) == 2:
     start_date, end_date = travel_dates
     days_calc = (end_date - start_date).days + 1
-elif len(travel_dates) == 1:
-    st.caption("📅 Selecione a data de volta.")
+    if days_calc < 1: days_calc = 1
 
-c_viaj, c_moeda = st.columns(2)
-with c_viaj: travelers = st.slider("Pessoas", 1, 5, 2)
-with c_moeda: currency = st.selectbox("Moeda", ["BRL", "USD", "EUR"])
+c1, c2 = st.columns(2)
+with c1: travelers = st.slider("Pessoas", 1, 6, 2)
+with c2: currency = st.selectbox("Moeda", ["BRL", "USD", "EUR"])
 
 style = st.select_slider("Estilo", options=["Econômico", "Moderado", "Conforto", "Luxo"], value="Moderado")
-vibe = st.selectbox("Vibe", ["Tourist Mix (Padrão)", "Cultura (Museus)", "Gastro (Comer bem)", "Natureza (Ar livre)", "Festa (Nightlife)", "Familiar (Relax)"])
+vibe_display = st.selectbox("Vibe da Viagem", 
+    ["Tourist Mix (Clássico)", "Cultura (História/Arte)", "Gastro (Comer Bem)", 
+     "Natureza (Relax/Trilhas)", "Festa (Vida Noturna)", "Familiar (Com Crianças)"])
 
-vibe_map = {"Tourist Mix (Padrão)": "tourist_mix", "Cultura (Museus)": "cultura", "Gastro (Comer bem)": "gastro", "Natureza (Ar livre)": "natureza", "Festa (Nightlife)": "festa", "Familiar (Relax)": "familiar"}
+# Mapa reverso de Vibe
+vibe_map = {
+    "Tourist Mix (Clássico)": "tourist_mix", "Cultura (História/Arte)": "cultura",
+    "Gastro (Comer Bem)": "gastro", "Natureza (Relax/Trilhas)": "natureza",
+    "Festa (Vida Noturna)": "festa", "Familiar (Com Crianças)": "familiar"
+}
 
-# --- Cálculo ---
-if st.button("💰 Calcular Orçamento", type="primary"):
-    if not dest or days_calc == 0:
-        st.error("⚠️ Preencha o destino e as datas!")
-    else:
-        with st.spinner('Calculando...'):
-            res = engine.engine.calculate_cost(dest, days_calc, travelers, style.lower(), currency, vibe_map[vibe], start_date)
-            
-            st.success("✅ Orçamento pronto!")
-            
-            # --- Resultado ---
-            st.markdown(f'<div class="price-hero">{format_brl(res["daily_avg"], currency)}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="price-sub">por pessoa / dia<br>Total: {format_brl(res["total"], currency)}</div>', unsafe_allow_html=True)
-
-            # --- TICKET DOWNLOAD (SIMPLIFICADO) ---
-            st.markdown("### 📸 Salvar Resumo")
-            
-            # 1. Gera a imagem (Já vem em bytes do share.py)
-            ticket_data = share.TicketGenerator().create_ticket(dest, res['total'], res['daily_avg'], days_calc, vibe_map[vibe], currency)
-            
-            # 2. Botão de Download Direto
-            st.download_button(
-                label="💾 Baixar Imagem do Ticket",
-                data=ticket_data,  # Passamos direto, sem converter
-                file_name=f"takeitiz_{dest}.png",
-                mime="image/png",
-                use_container_width=True
-            )
-            st.caption("Ao baixar, use a opção 'Salvar Imagem' do seu celular.")
-
-            # --- BREAKDOWN ---
-            with st.expander("📊 Detalhes do Custo"):
-                bk = res['breakdown']
-                c1, c2, c3 = st.columns(3)
-                c1.metric("🏨 Hotel", f"{int(bk['lodging']):,}".replace(',','.'))
-                c2.metric("🍽️ Comida", f"{int(bk['food']):,}".replace(',','.'))
-                c3.metric("🚌 Lazer+", f"{int(bk['transport']+bk['activities']+bk['misc']):,}".replace(',','.'))
-
-            # --- CURADORIA ---
-            st.write("---")
-            st.subheader(f"✨ Curadoria: {dest}")
-            links = amenities.AmenitiesGenerator().generate_links(dest, vibe_map[vibe], style.lower(), start_date)
-            
-            html_grid = f"""
-            <div class="amenity-grid">
-                <a href="{links["flight"]}" target="_blank" class="amenity-btn"><span>✈️</span><span style="font-size:12px">{links["labels"]["flight_label"]}</span></a>
-                <a href="{links["hotel"]}" target="_blank" class="amenity-btn"><span>🛏️</span><span style="font-size:12px">{links["labels"]["hotel_label"]}</span></a>
-                <a href="{links["food"]}" target="_blank" class="amenity-btn"><span>🍽️</span><span style="font-size:12px">{links["labels"]["food_label"]}</span></a>
-                <a href="{links["event"]}" target="_blank" class="amenity-btn"><span>📅</span><span style="font-size:12px">{links["labels"]["event_label"]}</span></a>
-            </div>
-            """
-            st.markdown(html_grid, unsafe_allow_html=True)
-            
-            # --- METODOLOGIA ---
-            with st.expander("ℹ️ Como funciona o cálculo?"):
-                st.markdown("""
-                <div style="font-size: 13px; color: #555;">
-                O <b>Takeitiz</b> utiliza inteligência de dados para estimar seus gastos:
-                <br><br>
-                🌎 <b>Custo de Vida:</b> Baseado no banco de dados global <i>Numbeo</i>.<br>
-                🍔 <b>Poder de Compra:</b> Ajustado pelo índice <i>Big Mac</i> e inflação local.<br>
-                💱 <b>Câmbio:</b> Cotação atualizada em tempo real.<br><br>
-                <i>Os valores são estimativas médias para auxiliar no planejamento financeiro.</i>
-                </div>
-                """, unsafe_allow_html=True)
-
-# --- RODAPÉ COM SHARE ---
+# --- BOTÃO DE AÇÃO ---
 st.write("")
-st.divider()
-st.markdown(f"""
-<div style="text-align:center; margin-bottom: 20px;">
-    <span style="font-size: 14px; font-weight: bold; color: #1E88E5;">Gostou? Divulgue!</span><br>
-    <a href="https://wa.me/?text=Olha%20esse%20app%20que%20calcula%20viagem:%20https://takeitiz.com.br" target="_blank" style="text-decoration:none; color: #25D366; font-weight:bold; font-size: 16px;">
-       📲 Enviar no WhatsApp
-    </a>
-</div>
-""", unsafe_allow_html=True)
+if st.button("💰 Calcular Investimento", type="primary", use_container_width=True):
+    if not dest or days_calc == 0:
+        st.warning("⚠️ Por favor, informe o destino e as datas (ida e volta).")
+    else:
+        with st.spinner('Consultando nossa base de dados...'):
+            res = engine.engine.calculate_cost(dest, days_calc, travelers, style.lower(), currency, vibe_map[vibe_display], start_date)
+            st.session_state.result = res
+            st.session_state.calculated = True
+
+# --- RESULTADO ---
+if st.session_state.calculated:
+    res = st.session_state.result
+    st.divider()
+    
+    # 1. Big Number
+    def fmt(v): return f"{currency} {v:,.2f}".replace(',','X').replace('.',',').replace('X','.')
+    
+    st.markdown(f'<div class="price-hero">{fmt(res["daily_avg"])}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="price-sub">por pessoa / dia<br><b>Total: {fmt(res["total"])}</b></div>', unsafe_allow_html=True)
+
+    # 2. Breakdown
+    with st.expander("📊 Ver detalhes dos gastos"):
+        bk = res['breakdown']
+        col_a, col_b, col_c = st.columns(3)
+        col_a.metric("Hospedagem", fmt(bk['lodging']), delta_color="off")
+        col_b.metric("Alimentação", fmt(bk['food']), delta_color="off")
+        col_c.metric("Lazer/Transp.", fmt(bk['transport'] + bk['activities'] + bk['misc']), delta_color="off")
+
+    # 3. Monetização (Grid Otimizado)
+    st.write("---")
+    st.caption(f"Curadoria para **{dest}**:")
+    
+    data = amenities.AmenitiesGenerator().generate_links(dest, vibe_map[vibe_display], style.lower())
+    L = data["links"]
+    T = data["labels"]
+    I = data["icons"]
+    
+    st.markdown(f"""
+    <div class="monetize-grid">
+        <a href="{L['flight']}" target="_blank" class="monetize-btn">
+            <span class="btn-icon">{I['flight']}</span>
+            <span class="btn-label">{T['flight']}</span>
+        </a>
+        <a href="{L['hotel']}" target="_blank" class="monetize-btn">
+            <span class="btn-icon">{I['hotel']}</span>
+            <span class="btn-label">{T['hotel']}</span>
+        </a>
+        <a href="{L['attr']}" target="_blank" class="monetize-btn">
+            <span class="btn-icon">{I['attr']}</span>
+            <span class="btn-label">{T['attr']}</span>
+        </a>
+        <a href="{L['insurance']}" target="_blank" class="monetize-btn">
+            <span class="btn-icon">{I['insurance']}</span>
+            <span class="btn-label">{T['insurance']}</span>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 4. Ticket Download
+    st.write("---")
+    st.subheader("📸 Salvar Resumo")
+    ticket_img = share.TicketGenerator().create_ticket(dest, res['total'], res['daily_avg'], days_calc, vibe_map[vibe_display], currency)
+    
+    st.download_button(
+        label="💾 Baixar Imagem (Para Stories)",
+        data=ticket_img,
+        file_name=f"takeitiz_{dest}.png",
+        mime="image/png",
+        use_container_width=True
+    )
+    
+    st.markdown(f"""
+    <div style="text-align:center; margin-top: 15px;">
+        <a href="https://wa.me/?text=Acabei%20de%20calcular%20nossa%20viagem%20para%20{dest}%20no%20Takeitiz.%20Vai%20dar%20aprox.%20{fmt(res['daily_avg'])}%20por%20dia.%20Veja%20aqui:%20https://takeitiz.com.br" target="_blank" style="text-decoration:none; color: #25D366; font-weight:bold;">
+           📲 Enviar no WhatsApp
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 5. Metodologia (Texto Ajustado - Marketing First)
+    with st.expander("ℹ️ Metodologia"):
+        st.markdown("""
+        <div style="font-size: 13px; color: #555;">
+        O <b>Takeitiz</b> utiliza um modelo híbrido de <b>Inteligência de Dados + Curadoria Humana</b>:<br><br>
+        📊 <b>Índices Proprietários:</b> Nossa base é calibrada manualmente para refletir o comportamento do turista brasileiro, corrigindo distorções de plataformas automáticas.<br>
+        🌎 <b>Poder de Compra Real:</b> Aplicamos algoritmos de paridade para que o custo reflita a realidade local, seja em Peso, Dólar ou Euro.<br>
+        💱 <b>Câmbio Turismo:</b> Cotação atualizada em tempo real, considerando IOF e spread médio de mercado.<br>
+        </div>
+        """, unsafe_allow_html=True)
