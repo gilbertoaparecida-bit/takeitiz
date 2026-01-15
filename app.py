@@ -17,22 +17,20 @@ st.set_page_config(
 DOMAIN = "https://takeitiz.com.br"
 ICON_URL = f"{DOMAIN}/icon.png"
 
-# --- CSS NUCLEAR (Sniper Anti-Rodapé) ---
+# --- CSS SNIPER (Anti-Rodapé & Branding) ---
 st.markdown("""
     <style>
-    /* 1. Esconder Header, Footer e Hamburger do Streamlit */
+    /* 1. Ocultar Elementos do Streamlit via Test-ID (Mais seguro) */
+    [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
+    [data-testid="stDecoration"] {visibility: hidden !important; display: none !important;}
+    [data-testid="stStatusWidget"] {visibility: hidden !important;}
+    [data-testid="stFooter"] {display: none !important;}
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden; display: none !important;}
     .stDeployButton {display:none;}
     
-    /* 2. Ocultar Elementos via Test-ID (Mais seguro) */
-    [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
-    [data-testid="stDecoration"] {visibility: hidden !important; display: none !important;}
-    [data-testid="stStatusWidget"] {visibility: hidden !important;}
-    [data-testid="stFooter"] {display: none !important;}
-    
-    /* 3. Layout Mobile Otimizado */
+    /* 2. Layout Mobile Otimizado */
     .block-container {
         padding-top: 1.5rem !important; 
         padding-bottom: 5rem !important;
@@ -40,7 +38,7 @@ st.markdown("""
         padding-right: 1rem !important;
     }
     
-    /* 4. Estilo dos Botões de Monetização (Grid) */
+    /* 3. Estilo dos Botões de Monetização (Grid) */
     .monetize-grid {
         display: grid; 
         grid-template-columns: 1fr 1fr; 
@@ -63,19 +61,19 @@ st.markdown("""
     .btn-icon { font-size: 24px; margin-bottom: 5px; }
     .btn-label { font-size: 13px; font-weight: 600; font-family: sans-serif; }
     
-    /* 5. Preço Hero */
+    /* 4. Preço Hero */
     .price-hero {
         font-family: 'Roboto', sans-serif; font-size: 46px; font-weight: 800;
         color: #1E88E5; text-align: center; line-height: 1.0; margin-top: 10px;
     }
     .price-sub { font-size: 14px; color: #757575; text-align: center; margin-bottom: 25px; }
     
-    /* 6. Branding Header (Identidade Restaurada) */
+    /* 5. Branding Header (Esquerda) */
     .brand-container { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
     .brand-title { font-size: 32px; font-weight: 900; color: #31333F; letter-spacing: -1px; }
     .brand-icon { width: 35px; height: 35px; border-radius: 6px; }
     
-    /* 7. Aviso de Passagem */
+    /* 6. Aviso de Passagem */
     .flight-warning { font-size: 14px; color: #888; font-style: italic; margin-top: 0px; margin-bottom: 20px; }
     
     </style>
@@ -112,7 +110,11 @@ c1, c2 = st.columns(2)
 with c1: travelers = st.slider("Pessoas", 1, 6, 2)
 with c2: currency = st.selectbox("Moeda", ["BRL", "USD", "EUR"])
 
-style = st.select_slider("Estilo", options=["Econômico", "Moderado", "Conforto", "Luxo"], value="Moderado")
+# Novo Slider com Opção Super Luxo
+style = st.select_slider("Estilo", 
+    options=["Econômico", "Moderado", "Conforto", "Luxo", "Super Luxo (Exclusivo)"], 
+    value="Moderado")
+
 vibe_display = st.selectbox("Vibe da Viagem", 
     ["Tourist Mix (Clássico)", "Cultura (História/Arte)", "Gastro (Comer Bem)", 
      "Natureza (Relax/Trilhas)", "Festa (Vida Noturna)", "Familiar (Com Crianças)"])
@@ -129,7 +131,7 @@ if st.button("💰 Calcular Investimento", type="primary", use_container_width=T
     if not dest or days_calc == 0:
         st.warning("⚠️ Por favor, informe o destino e as datas (ida e volta).")
     else:
-        with st.spinner('Consultando nossa base de dados...'):
+        with st.spinner('Calibrando preços e experiências...'):
             res = engine.engine.calculate_cost(dest, days_calc, travelers, style.lower(), currency, vibe_map[vibe_display], start_date)
             st.session_state.result = res
             st.session_state.calculated = True
@@ -138,7 +140,6 @@ if st.button("💰 Calcular Investimento", type="primary", use_container_width=T
 if st.session_state.calculated:
     res = st.session_state.result
     
-    # Sucesso Verde
     st.success("✅ Orçamento pronto!")
     
     # 1. Big Number
