@@ -8,6 +8,7 @@ import unicodedata
 from datetime import datetime
 from geopy.geocoders import Nominatim
 import database
+import config  # <--- IMPORTANDO O PAINEL DE CONTROLE
 
 # --- CONFIGURAÇÃO ---
 requests_cache.install_cache('takeitiz_cache', expire_after=3600)
@@ -88,9 +89,11 @@ class FXProvider:
         if backup:
             return backup * TOURIST_SPREAD if target_currency == "BRL" else backup
 
-        # HARDENING: Fallback Semanal
-        # TODO: Implementar formulário Admin para input dinâmico destes valores
-        fallback = {"BRL": 6.00, "EUR": 0.95} 
+        # SPRINT 2: CÂMBIO CENTRALIZADO NO CONFIG.PY
+        fallback = {
+            "BRL": config.EXCHANGE_RATE_BRL_FALLBACK, 
+            "EUR": config.EXCHANGE_RATE_EUR_FALLBACK
+        } 
         return fallback.get(target_currency, 1.0)
 
 # --- 4. GEOLOCALIZAÇÃO ---
