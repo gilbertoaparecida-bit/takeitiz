@@ -17,25 +17,60 @@ st.set_page_config(
 DOMAIN = "https://takeitiz.com.br"
 ICON_URL = f"{DOMAIN}/icon.png"
 
-# --- CSS ---
+# --- FUNÇÃO: DIÁLOGO DE INSTALAÇÃO ---
+@st.dialog("📲 Como instalar o App")
+def install_guide():
+    st.write("O Takeitiz funciona melhor como um aplicativo na sua tela de início.")
+    st.write("---")
+    
+    tab_ios, tab_android = st.tabs(["🍎 iPhone (iOS)", "🤖 Android"])
+    
+    with tab_ios:
+        st.markdown("""
+        1. Toque no botão **Compartilhar** (quadrado com seta) na barra inferior do Safari.
+        2. Role as opções para cima.
+        3. Toque em **'Adicionar à Tela de Início'**.
+        4. Confirme clicando em **Adicionar**.
+        """)
+        
+    with tab_android:
+        st.markdown("""
+        1. Toque nos **três pontinhos** no canto superior direito do Chrome.
+        2. Selecione **'Instalar aplicativo'** ou **'Adicionar à tela inicial'**.
+        3. Confirme clicando em **Instalar**.
+        """)
+
+# --- CSS (VISUAL & COMPORTAMENTO) ---
 st.markdown("""
     <style>
-    /* Ocultar Elementos Padrão */
+    /* Ocultar Elementos Padrão do Streamlit */
     [data-testid="stToolbar"] {visibility: hidden !important; display: none !important;}
     [data-testid="stDecoration"] {visibility: hidden !important; display: none !important;}
     [data-testid="stStatusWidget"] {visibility: hidden !important;}
     [data-testid="stFooter"] {display: none !important;}
-    #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden; display: none !important;}
-    .stDeployButton {display:none;}
     
-    /* Layout Mobile */
+    /* Layout Mobile Otimizado */
     .block-container {
-        padding-top: 1.5rem !important; 
+        padding-top: 1.0rem !important; 
         padding-bottom: 5rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
+    }
+    
+    /* Branding Header */
+    .brand-container { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+    .brand-title { font-size: 28px; font-weight: 900; color: #31333F; letter-spacing: -1px; margin: 0;}
+    .brand-icon { width: 32px; height: 32px; border-radius: 6px; }
+    
+    /* --- LÓGICA DO BOTÃO INSTALAR --- */
+    /* Se o navegador detectar que está em modo 'App' (Standalone), esconde o botão de instalar */
+    @media all and (display-mode: standalone) {
+        /* Esconde o botão que está na segunda coluna do topo */
+        [data-testid="column"]:nth-of-type(2) button {
+            display: none !important;
+        }
     }
     
     /* Grid de Monetização */
@@ -68,22 +103,26 @@ st.markdown("""
     }
     .price-sub { font-size: 14px; color: #757575; text-align: center; margin-bottom: 25px; }
     
-    /* Branding */
-    .brand-container { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
-    .brand-title { font-size: 32px; font-weight: 900; color: #31333F; letter-spacing: -1px; }
-    .brand-icon { width: 35px; height: 35px; border-radius: 6px; }
     .flight-warning { font-size: 14px; color: #888; font-style: italic; margin-top: 0px; margin-bottom: 20px; }
     
     </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER ---
-st.markdown(f"""
-    <div class="brand-container">
-        <img src="{ICON_URL}" class="brand-icon">
-        <div class="brand-title">Takeitiz</div>
-    </div>
-""", unsafe_allow_html=True)
+# --- CABEÇALHO (MARCA + INSTALAR) ---
+c_brand, c_install = st.columns([0.65, 0.35])
+
+with c_brand:
+    st.markdown(f"""
+        <div class="brand-container">
+            <img src="{ICON_URL}" class="brand-icon">
+            <div class="brand-title">Takeitiz</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with c_install:
+    # Este botão sumirá automaticamente se o usuário estiver no modo App (Standalone)
+    if st.button("📲 Instalar", key="btn_install", use_container_width=True):
+        install_guide()
 
 st.markdown("**Saiba quanto você vai gastar no destino escolhido.**")
 st.markdown('<p class="flight-warning">(não inclui passagens aéreas)</p>', unsafe_allow_html=True)
@@ -135,7 +174,7 @@ if st.button("💰 Calcular Investimento", type="primary", use_container_width=T
             st.session_state.result = res
             st.session_state.calculated = True
 
-# --- EXIBIÇÃO DO RESULTADO (SÓ APARECE SE CALCULAR) ---
+# --- EXIBIÇÃO ---
 if st.session_state.calculated:
     res = st.session_state.result
     st.success("✅ Orçamento pronto!")
@@ -163,33 +202,24 @@ if st.session_state.calculated:
     # 4. CONCIERGE PERSONALIZADO
     st.subheader("🛎️ Concierge Digital")
     
-    # Concierge: Gastronomia removida pois já está fixa
     user_choices = st.multiselect(
         label=f"Além do básico, o que você quer curtir em {dest}?",
         options=["Compras", "Vida Noturna", "Arte & Cultura", "Natureza", "Agenda de Eventos", "Atrações/Coworking"],
-        default=[] # Começa limpo pois os essenciais já estão lá
+        default=[]
     )
 
-    # Gerar Links com Vibe
     links_data = amenities.AmenitiesGenerator().generate_concierge_links(dest, style.lower(), start_date, days_calc, vibe_map[vibe_display])
     
-    # Montagem do Grid
     html_buttons = ""
     
-    # A. Botões Obrigatórios (Fixos)
     fixed_keys = ["flight", "hotel", "food", "insurance"]
     for key in fixed_keys:
         item = links_data[key]
         html_buttons += f'<a href="{item["url"]}" target="_blank" class="monetize-btn"><span class="btn-icon">{item["icon"]}</span><span class="btn-label">{item["label"]}</span></a>'
         
-    # B. Botões Dinâmicos (Concierge)
     selection_map = {
-        "Compras": "shopping",
-        "Vida Noturna": "night",
-        "Arte & Cultura": "culture",
-        "Natureza": "nature",
-        "Agenda de Eventos": "event",
-        "Atrações/Coworking": "attr"
+        "Compras": "shopping", "Vida Noturna": "night", "Arte & Cultura": "culture",
+        "Natureza": "nature", "Agenda de Eventos": "event", "Atrações/Coworking": "attr"
     }
     
     for choice in user_choices:
@@ -198,17 +228,14 @@ if st.session_state.calculated:
             item = links_data[key]
             html_buttons += f'<a href="{item["url"]}" target="_blank" class="monetize-btn"><span class="btn-icon">{item["icon"]}</span><span class="btn-label">{item["label"]}</span></a>'
 
-    # Renderização
     st.markdown(f'<div class="monetize-grid">{html_buttons}</div>', unsafe_allow_html=True)
     
-    # 5. Metodologia
     with st.expander("ℹ️ Metodologia"):
         st.write("Cálculos baseados em dados proprietários calibrados manualmente para o perfil brasileiro.")
 
-# --- RODAPÉ FIXO (FORA DO IF - SEMPRE VISÍVEL) ---
+# --- RODAPÉ FIXO DE VIRALIZAÇÃO ---
 st.divider()
 
-# Mensagem de Viralização para trazer novos usuários
 msg_text = f"Descubra quanto custa sua próxima viagem em segundos! ✈️ Orçamento de voos, hotéis e lazer no Takeitiz. Acesse: {DOMAIN}"
 msg_encoded = urllib.parse.quote(msg_text)
 
