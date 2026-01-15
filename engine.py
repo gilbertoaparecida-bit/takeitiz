@@ -13,7 +13,7 @@ import database
 requests_cache.install_cache('takeitiz_cache', expire_after=3600)
 logging.basicConfig(level=logging.INFO)
 
-# --- 1. A ÂNCORA ---
+# --- 1. A ÂNCORA (GLOBAL BASELINE - MADRID) ---
 BASE_SPEND_USD_ANCHOR = {
     'food': 45.0, 
     'transport': 12.0, 
@@ -22,7 +22,7 @@ BASE_SPEND_USD_ANCHOR = {
     'misc': 8.0
 }
 
-# --- 2. CONFIGURAÇÕES ---
+# --- 2. CONFIGURAÇÕES (PERFIL E ESTILO) ---
 class VibeConfig:
     MULTIPLIERS = {
         'tourist_mix': {'food': 1.0, 'transport': 1.0, 'activities': 1.0, 'nightlife': 0.5, 'misc': 1.0},
@@ -34,11 +34,14 @@ class VibeConfig:
     }
 
 class StyleConfig:
+    # AQUI ESTÁ A NOVA CATEGORIA SUPER LUXO
+    # hotel_pct 1.75 gera um multiplicador exponencial de ~8x a base
     SETTINGS = {
-        'econômico': {'factor': 0.60, 'hotel_pct': 0.15},
-        'moderado':  {'factor': 1.00, 'hotel_pct': 0.40}, 
-        'conforto':  {'factor': 1.60, 'hotel_pct': 0.75},
-        'luxo':      {'factor': 3.20, 'hotel_pct': 0.95},
+        'econômico':  {'factor': 0.60, 'hotel_pct': 0.15},
+        'moderado':   {'factor': 1.00, 'hotel_pct': 0.40}, 
+        'conforto':   {'factor': 1.60, 'hotel_pct': 0.75},
+        'luxo':       {'factor': 3.20, 'hotel_pct': 0.95},
+        'super_luxo': {'factor': 6.00, 'hotel_pct': 1.75} # Categoria Ritz/Four Seasons
     }
 
 # --- 3. PROVEDOR DE CÂMBIO ---
@@ -130,16 +133,15 @@ class GeoCostProvider:
                 country = address.get('country_code', '').lower()
                 state = address.get('state', '').lower()
                 
-                # Definição de Perfil
                 profile = 'padrao'
                 if country in ['br', 'ar', 'uy', 'cl']: profile = 'sul_tropical'
                 elif country in ['us', 'gb', 'fr', 'es', 'it', 'de']: profile = 'norte_temperado'
                 elif 'florida' in state: profile = 'inverno_fugitivo'
                 
-                # Definição de Índice (PISO DE SEGURANÇA)
+                # PISO DE SEGURANÇA PARA FALLBACK
                 idx = 100
-                if country == 'us': idx = 140 # Piso EUA (Correção Fallback)
-                elif country in ['gb', 'fr', 'ch']: idx = 120 # Piso Europa Rica
+                if country == 'us': idx = 140 # Nunca subestimar EUA
+                elif country in ['gb', 'fr', 'ch']: idx = 120
                 elif profile == 'norte_temperado': idx = 115
                 elif profile == 'sul_tropical': idx = 95
                 
@@ -153,6 +155,7 @@ class AccommodationProvider:
     def estimate_adr(self, price_index, style_pct):
         BASE_HOTEL_USD = 120.0
         city_factor = price_index / 100.0
+        # Fórmula Exponencial: Permite que Super Luxo (1.75) dispare o preço
         style_factor = np.exp(1.6 * (style_pct - 0.45))
         return BASE_HOTEL_USD * city_factor * style_factor
 
@@ -164,45 +167,37 @@ class CostEngine:
         self.hotel = AccommodationProvider()
 
     def calculate_cost(self, destination, days, travelers, style, currency, vibe="tourist_mix", start_date=None):
-        # 1. Dados Base
         usd_rate = self.fx.get_rate(currency)
         idx, profile, modifiers = self.geo.get_data(destination)
         
-        # 2. Sazonalidade
         season_factor = 1.0
         if start_date:
             matrix = self.geo.SEASONALITY_MATRIX.get(profile, self.geo.SEASONALITY_MATRIX['padrao'])
             season_factor = matrix[start_date.month - 1]
 
-        # 3. Configs
-        style_cfg = StyleConfig.SETTINGS.get(style.lower(), StyleConfig.SETTINGS['moderado'])
+        # Sanitização da chave de estilo para garantir compatibilidade
+        style_key = style.lower()
+        if "super" in style_key: style_key = "super_luxo"
+        elif "econ" in style_key: style_key = "econômico"
+        
+        style_cfg = StyleConfig.SETTINGS.get(style_key, StyleConfig.SETTINGS['moderado'])
         vibe_mult = VibeConfig.MULTIPLIERS.get(vibe.lower(), VibeConfig.MULTIPLIERS['tourist_mix'])
         
-        # 4. Cálculo Vida Diária (com Modifiers)
         breakdown_usd = {}
         daily_life_usd = 0
         
         for cat, base in BASE_SPEND_USD_ANCHOR.items():
             life_season = 1 + (season_factor - 1) * 0.5
-            
-            # Aplica modificador de cluster se existir (ex: transport em Londres)
             cat_mod = modifiers.get(cat, 1.0) 
-            
             val = base * (idx / 100.0) * style_cfg['factor'] * vibe_mult[cat] * life_season * cat_mod
             breakdown_usd[cat] = val
             daily_life_usd += val
             
-        # 5. Cálculo Hotel (com Modifiers)
         rooms = math.ceil(travelers / 2)
-        
-        # Aplica modificador de cluster para hotel (ex: lodging em Lisboa)
         lodging_mod = modifiers.get('lodging', 1.0)
-        
         adr_usd = self.hotel.estimate_adr(idx, style_cfg['hotel_pct']) * season_factor * lodging_mod
         
         total_hotel = adr_usd * rooms * days
-        
-        # 6. Finalização
         final = (total_hotel + (daily_life_usd * travelers * days)) * usd_rate
         
         return {
