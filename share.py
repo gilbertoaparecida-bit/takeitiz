@@ -1,14 +1,15 @@
-import requests
 import io
 import textwrap
 from PIL import Image, ImageDraw, ImageFont
 
 class TicketGenerator:
     def __init__(self):
-        # Fontes do Google Fonts
-        self.FONT_BOLD = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf"
-        self.FONT_REG = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Regular.ttf"
-        self.FONT_BLACK = "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Black.ttf"
+        # SPRINT 1: OTIMIZAÇÃO DE ASSETS
+        # Fontes lidas localmente para eliminar latência de rede.
+        # Requer arquivos Roboto-Bold.ttf, Roboto-Regular.ttf, Roboto-Black.ttf na raiz.
+        self.FONT_BOLD = "Roboto-Bold.ttf"
+        self.FONT_REG = "Roboto-Regular.ttf"
+        self.FONT_BLACK = "Roboto-Black.ttf"
 
         self.font_hero = self.get_font(self.FONT_BLACK, 80)
         self.font_dest = self.get_font(self.FONT_BOLD, 45)
@@ -16,12 +17,12 @@ class TicketGenerator:
         self.font_url = self.get_font(self.FONT_BOLD, 26)
         self.font_logo = self.get_font(self.FONT_BOLD, 28)
 
-    def get_font(self, url, size):
+    def get_font(self, path, size):
         try:
-            resp = requests.get(url, timeout=3)
-            resp.raise_for_status()
-            return ImageFont.truetype(io.BytesIO(resp.content), size)
-        except:
+            # Carregamento direto do disco (Instantâneo)
+            return ImageFont.truetype(path, size)
+        except OSError:
+            # Fallback de segurança caso o arquivo não seja encontrado
             return ImageFont.load_default()
 
     def format_money(self, val, curr):
